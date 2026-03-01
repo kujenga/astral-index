@@ -83,6 +83,25 @@ uv run --package astral-ingest astral-ingest expand --since 7
 uv run --package astral-ingest astral-ingest expand --since 1 --js --concurrency 3 --dry-run
 ```
 
+### Linting, Formatting, and Type Checking
+
+Pre-commit hooks run automatically on `git commit`:
+- **ruff** — linting (`ruff check --fix`) and formatting (`ruff format`)
+- **ty** — type checking (`ty check`)
+
+After cloning, install hooks:
+```bash
+uv sync --all-packages
+uv run pre-commit install
+```
+
+To run all checks manually:
+```bash
+uv run pre-commit run --all-files
+```
+
+Configuration lives in the root `pyproject.toml`.
+
 ### Reddit credentials
 
 The Reddit scraper requires `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` environment variables (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT` overrides the default. Store these in a `.env` file (gitignored).
