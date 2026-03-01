@@ -32,6 +32,15 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds and API endpoints. Add new sources here, not in code.
 - Dedup is URL-hash based: scrapers check `store.exists(id)` before saving.
 
+## Public repository
+
+This repo is public. Keep this in mind:
+
+- **Never commit secrets** — API keys, tokens, credentials, and `.env` files must stay out of version control. Use environment variables or untracked config files.
+- **Commit messages are visible** — write them as if anyone can read them. No internal shorthand, TODOs referencing private systems, or sloppy language.
+- **Code quality matters from the start** — every commit is part of the public history. Prefer clean, intentional commits over fixup noise.
+- **Be mindful of scraped data** — `data/` is gitignored for a reason. Don't commit raw content that may have licensing or copyright implications.
+
 ## Development
 
 - Keep implementations simple — avoid premature abstraction
