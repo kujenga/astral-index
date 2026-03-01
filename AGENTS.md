@@ -28,6 +28,7 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 ## Development
 
 - Keep implementations simple — avoid premature abstraction
+- Always use `uv run` to execute Python commands — never call `python` or `python3` directly
 
 ### uv
 
