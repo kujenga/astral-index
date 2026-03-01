@@ -1,0 +1,167 @@
+# Astral Index — RSS source configuration
+# Tiers indicate feed reliability/richness (1 = best)
+
+rss_sources:
+  # --- Tier 1: Full-text feeds ---
+  - name: "Universe Today"
+    url: "https://universetoday.com/feed"
+    content_type: full_text
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  - name: "Parabolic Arc"
+    url: "https://parabolicarc.com/feed/"
+    content_type: full_text
+    category_hints: [commercial_space, launch_vehicles]
+    poll_interval_hours: 4
+
+  - name: "Behind the Black"
+    url: "https://behindtheblack.com/feed/"
+    content_type: full_text
+    category_hints: [commercial_space, policy]
+    poll_interval_hours: 4
+
+  - name: "Casey Handmer"
+    url: "https://caseyhandmer.wordpress.com/feed/"
+    content_type: full_text
+    category_hints: [commercial_space]
+    poll_interval_hours: 4
+
+  - name: "Centauri Dreams"
+    url: "https://centauri-dreams.org/feed/"
+    content_type: full_text
+    category_hints: [deep_space]
+    poll_interval_hours: 4
+
+  - name: "NASA Watch"
+    url: "https://nasawatch.com/feed/"
+    content_type: full_text
+    category_hints: [policy]
+    poll_interval_hours: 4
+
+  - name: "EarthSky"
+    url: "https://earthsky.org/space/feed"
+    content_type: full_text
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  # --- Tier 2: Excerpt-only feeds ---
+  - name: "SpaceNews"
+    url: "https://spacenews.com/feed/"
+    content_type: excerpt
+    category_hints: [commercial_space, policy]
+    poll_interval_hours: 4
+    is_paywalled: true
+
+  - name: "Ars Technica Space"
+    url: "https://arstechnica.com/space/feed/"
+    content_type: excerpt
+    category_hints: [launch_vehicles, commercial_space]
+    poll_interval_hours: 6
+    is_paywalled: true
+
+  - name: "NASASpaceflight"
+    url: "https://nasaspaceflight.com/feed"
+    content_type: excerpt
+    category_hints: [launch_vehicles, commercial_space]
+    poll_interval_hours: 4
+
+  - name: "Spaceflight Now"
+    url: "https://spaceflightnow.com/feed/"
+    content_type: excerpt
+    category_hints: [launch_vehicles]
+    poll_interval_hours: 4
+
+  - name: "Space.com"
+    url: "https://space.com/feeds.xml"
+    content_type: excerpt
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  - name: "European Spaceflight"
+    url: "https://europeanspaceflight.com/feed/"
+    content_type: excerpt
+    category_hints: [international]
+    poll_interval_hours: 4
+
+  - name: "Payload Space"
+    url: "https://payloadspace.com/feed/"
+    content_type: excerpt
+    category_hints: [commercial_space]
+    poll_interval_hours: 4
+
+  - name: "The Space Review"
+    url: "https://thespacereview.com/article/rss.xml"
+    content_type: excerpt
+    category_hints: [policy]
+    poll_interval_hours: 4
+
+  - name: "Planetary Society"
+    url: "https://planetary.org/articles/rss"
+    content_type: excerpt
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  - name: "SpacePolicy Online"
+    url: "https://spacepolicyonline.com/feed"
+    content_type: excerpt
+    category_hints: [policy]
+    poll_interval_hours: 4
+
+  - name: "Everyday Astronaut"
+    url: "https://everydayastronaut.com/feed/"
+    content_type: excerpt
+    category_hints: [launch_vehicles]
+    poll_interval_hours: 4
+
+  # --- Tier 3: Agency/institutional feeds ---
+  - name: "NASA"
+    url: "https://www.nasa.gov/feed/"
+    content_type: excerpt
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  - name: "ESA Top News"
+    url: "https://www.esa.int/rssfeed/TopNews"
+    content_type: excerpt
+    category_hints: [international]
+    poll_interval_hours: 4
+
+  - name: "JAXA Global"
+    url: "https://global.jaxa.jp/news/rss.xml"
+    content_type: excerpt
+    category_hints: [international]
+    poll_interval_hours: 4
+
+  - name: "Nature Astronomy"
+    url: "https://www.nature.com/natastron.rss"
+    content_type: excerpt
+    category_hints: [space_science]
+    poll_interval_hours: 4
+    is_paywalled: true
+
+  # --- Tier 4: Substack/newsletter feeds ---
+  - name: "Jatan's Space"
+    url: "https://jatan.space/rss/"
+    content_type: full_text
+    category_hints: [lunar, international]
+    poll_interval_hours: 4
+
+  - name: "Bad Astronomy"
+    url: "https://badastronomy.beehiiv.com/feed"
+    content_type: full_text
+    category_hints: [space_science]
+    poll_interval_hours: 4
+
+  - name: "European Spaceflight Newsletter"
+    url: "https://europeanspaceflight.substack.com/feed"
+    content_type: full_text
+    category_hints: [international]
+    poll_interval_hours: 4
+
+snapi:
+  base_url: "https://api.spaceflightnewsapi.net/v4"
+  endpoints:
+    - /articles/
+    - /blogs/
+  poll_interval_hours: 4

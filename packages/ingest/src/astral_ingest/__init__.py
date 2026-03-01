@@ -1,2 +1,5 @@
+from .cli import cli
+
+
 def main() -> None:
-    print("Hello from astral-ingest!")
+    cli()
