@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from typing import Any
@@ -9,16 +10,41 @@ import click
 import yaml
 from dotenv import load_dotenv
 
-from astral_core import ContentStore
+from astral_core import ContentItem, ContentStore
 
+from .scrapers.arxiv import ArxivScraper
+from .scrapers.bluesky import BlueskyScraper
 from .scrapers.reddit import RedditScraper
 from .scrapers.rss import RSSFeedScraper
 from .scrapers.snapi import SNAPIScraper
+from .scrapers.twitter import TwitterScraper
 
 
 def _load_sources() -> dict[str, Any]:
     source_path = files("astral_ingest").joinpath("sources.yaml")
     return yaml.safe_load(source_path.read_text())
+
+
+def _save_items(
+    items: list[ContentItem],
+    store: ContentStore,
+    dry_run: bool,
+    label_fn: Callable[[ContentItem], str] | None = None,
+) -> tuple[int, int]:
+    """Save items to store, returning (new, skipped) counts."""
+    new = 0
+    skipped = 0
+    for item in items:
+        if not dry_run and store.exists(item.id):
+            skipped += 1
+            continue
+        if dry_run:
+            label = label_fn(item) if label_fn else ""
+            click.echo(f"\n  [{item.source_name}] {item.title}{label}")
+        else:
+            store.save(item)
+        new += 1
+    return new, skipped
 
 
 def _build_rss_scrapers(
@@ -52,6 +78,27 @@ def _build_reddit_scraper(sources: dict[str, Any]) -> RedditScraper | None:
     return RedditScraper(reddit_cfg)
 
 
+def _build_arxiv_scrapers(sources: dict[str, Any]) -> list[ArxivScraper]:
+    arxiv_cfg = sources.get("arxiv")
+    if not arxiv_cfg:
+        return []
+    return [ArxivScraper(feed, arxiv_cfg) for feed in arxiv_cfg.get("feeds", [])]
+
+
+def _build_bluesky_scraper(sources: dict[str, Any]) -> BlueskyScraper | None:
+    bluesky_cfg = sources.get("bluesky")
+    if not bluesky_cfg:
+        return None
+    return BlueskyScraper(bluesky_cfg)
+
+
+def _build_twitter_scraper(sources: dict[str, Any]) -> TwitterScraper | None:
+    twitter_cfg = sources.get("twitter")
+    if not twitter_cfg:
+        return None
+    return TwitterScraper(twitter_cfg)
+
+
 @click.group()
 def cli() -> None:
     """Astral Index — space news ingestion."""
@@ -77,6 +124,22 @@ def sources() -> None:
     if reddit:
         subs = ", ".join(f"r/{s}" for s in reddit.get("subreddits", []))
         click.echo(f"\nReddit: {subs} (score >= {reddit.get('score_threshold', 50)})")
+
+    arxiv = cfg.get("arxiv", {})
+    if arxiv:
+        feeds = ", ".join(f["name"] for f in arxiv.get("feeds", []))
+        kw = arxiv.get("keyword_filter", False)
+        click.echo(f"\narXiv: {feeds} (keyword_filter={kw})")
+
+    bluesky = cfg.get("bluesky", {})
+    if bluesky:
+        accounts = ", ".join(f"@{a}" for a in bluesky.get("accounts", []))
+        click.echo(f"\nBluesky: {accounts}")
+
+    twitter = cfg.get("twitter", {})
+    if twitter:
+        accounts = ", ".join(f"@{a}" for a in twitter.get("accounts", []))
+        click.echo(f"\nTwitter/X: {accounts} (min_likes={twitter.get('min_likes', 5)})")
 
 
 @cli.command()
@@ -104,74 +167,96 @@ async def _scrape(source_name: str | None, dry_run: bool) -> None:
         except Exception as e:
             click.echo(f"ERROR: {e}")
             continue
-
-        new = 0
-        skipped = 0
-        for item in items:
-            if not dry_run and store.exists(item.id):
-                skipped += 1
-                continue
-            if dry_run:
-                click.echo(f"\n  [{item.source_name}] {item.title}")
-            else:
-                store.save(item)
-            new += 1
-
+        new, skipped = _save_items(items, store, dry_run)
         click.echo(f"{new} new, {skipped} skipped")
         total_new += new
         total_skipped += skipped
 
-    # SNAPI (skip if filtering to a specific RSS source)
-    if not source_name:
-        click.echo("Fetching Spaceflight News API... ", nl=False)
+    # Everything below is skipped when filtering to a specific RSS source
+    if source_name:
+        click.echo(f"\nDone: {total_new} new items, {total_skipped} skipped")
+        return
+
+    # SNAPI
+    click.echo("Fetching Spaceflight News API... ", nl=False)
+    try:
+        items = await _build_snapi_scraper(cfg).fetch()
+    except Exception as e:
+        click.echo(f"ERROR: {e}")
+    else:
+        new, skipped = _save_items(items, store, dry_run)
+        click.echo(f"{new} new, {skipped} skipped")
+        total_new += new
+        total_skipped += skipped
+
+    # Reddit
+    reddit = _build_reddit_scraper(cfg)
+    if reddit:
+        click.echo("Fetching Reddit... ", nl=False)
         try:
-            snapi = _build_snapi_scraper(cfg)
-            items = await snapi.fetch()
+            items = await reddit.fetch()
         except Exception as e:
             click.echo(f"ERROR: {e}")
         else:
-            new = 0
-            skipped = 0
-            for item in items:
-                if not dry_run and store.exists(item.id):
-                    skipped += 1
-                    continue
-                if dry_run:
-                    click.echo(f"\n  [{item.source_name}] {item.title}")
-                else:
-                    store.save(item)
-                new += 1
+
+            def _reddit_label(item: ContentItem) -> str:
+                return f" [score:{item.reddit_score}]" if item.reddit_score else ""
+
+            new, skipped = _save_items(items, store, dry_run, label_fn=_reddit_label)
             click.echo(f"{new} new, {skipped} skipped")
             total_new += new
             total_skipped += skipped
 
-    # Reddit (skip if filtering to a specific RSS source)
-    if not source_name:
-        reddit = _build_reddit_scraper(cfg)
-        if reddit:
-            click.echo("Fetching Reddit... ", nl=False)
-            try:
-                items = await reddit.fetch()
-            except Exception as e:
-                click.echo(f"ERROR: {e}")
-            else:
-                new = 0
-                skipped = 0
-                for item in items:
-                    if not dry_run and store.exists(item.id):
-                        skipped += 1
-                        continue
-                    if dry_run:
-                        score = (
-                            f" [score:{item.reddit_score}]" if item.reddit_score else ""
-                        )
-                        click.echo(f"\n  [{item.source_name}] {item.title}{score}")
-                    else:
-                        store.save(item)
-                    new += 1
-                click.echo(f"{new} new, {skipped} skipped")
-                total_new += new
-                total_skipped += skipped
+    # arXiv
+    for scraper in _build_arxiv_scrapers(cfg):
+        click.echo(f"Fetching arXiv: {scraper.name}... ", nl=False)
+        try:
+            items = await scraper.fetch()
+        except Exception as e:
+            click.echo(f"ERROR: {e}")
+            continue
+        new, skipped = _save_items(items, store, dry_run)
+        click.echo(f"{new} new, {skipped} skipped")
+        total_new += new
+        total_skipped += skipped
+
+    # Bluesky
+    bluesky = _build_bluesky_scraper(cfg)
+    if bluesky:
+        click.echo("Fetching Bluesky... ", nl=False)
+        try:
+            items = await bluesky.fetch()
+        except Exception as e:
+            click.echo(f"ERROR: {e}")
+        else:
+
+            def _bluesky_label(item: ContentItem) -> str:
+                handle = item.social_author_handle
+                return f" [@{handle}]" if handle else ""
+
+            new, skipped = _save_items(items, store, dry_run, label_fn=_bluesky_label)
+            click.echo(f"{new} new, {skipped} skipped")
+            total_new += new
+            total_skipped += skipped
+
+    # Twitter/X
+    twitter = _build_twitter_scraper(cfg)
+    if twitter:
+        click.echo("Fetching Twitter/X... ", nl=False)
+        try:
+            items = await twitter.fetch()
+        except Exception as e:
+            click.echo(f"ERROR: {e}")
+        else:
+
+            def _twitter_label(item: ContentItem) -> str:
+                eng = f" [eng:{item.tweet_engagement}]" if item.tweet_engagement else ""
+                return eng
+
+            new, skipped = _save_items(items, store, dry_run, label_fn=_twitter_label)
+            click.echo(f"{new} new, {skipped} skipped")
+            total_new += new
+            total_skipped += skipped
 
     click.echo(f"\nDone: {total_new} new items, {total_skipped} skipped")
 

@@ -180,3 +180,40 @@ reddit:
     blueorigin: [launch_vehicles, commercial_space]
     spaceflight: [launch_vehicles]
     astrophysics: [space_science, deep_space]
+
+arxiv:
+  keyword_filter: true
+  category_hints: [space_science]
+  feeds:
+    - name: "astro-ph.EP"
+      url: "https://rss.arxiv.org/rss/astro-ph.EP"
+    - name: "astro-ph.IM"
+      url: "https://rss.arxiv.org/rss/astro-ph.IM"
+
+bluesky:
+  limit: 30
+  accounts:
+    - "planet4589.bsky.social"
+    - "sciguyspace.bsky.social"
+    - "jfoust.bsky.social"
+    - "nasaspaceflight.bsky.social"
+    - "nasawatch.bsky.social"
+    - "spacepolicyonline.bsky.social"
+    - "rocketlab.bsky.social"
+    - "esa.bsky.social"
+    - "spacenews.bsky.social"
+
+twitter:
+  limit: 20
+  min_likes: 5
+  accounts:
+    - "planet4589"
+    - "SciGuySpace"
+    - "jeff_foust"
+    - "NASASpaceflight"
+    - "NASA"
+    - "SpaceX"
+    - "RocketLab"
+    - "elabolatist"
+    - "thesheetztweetz"
+    - "waboratory"

@@ -43,6 +43,9 @@ class ExtractionMethod(StrEnum):
     PLAYWRIGHT = "playwright"
     PDF = "pdf"
     SNAPI = "snapi"
+    BLUESKY_API = "bluesky_api"
+    SOCIALDATA_API = "socialdata_api"
+    ARXIV_RSS = "arxiv_rss"
 
 
 # Tracking params stripped during URL normalization
@@ -123,3 +126,13 @@ class ContentItem(BaseModel):
     # Reddit-specific signals
     reddit_score: int | None = None
     top_comment: str | None = None
+
+    # arXiv-specific
+    arxiv_id: str | None = None
+    arxiv_categories: list[str] = []
+
+    # Social media signals (Bluesky/Twitter)
+    bluesky_uri: str | None = None
+    tweet_id: str | None = None
+    tweet_engagement: int | None = None
+    social_author_handle: str | None = None
