@@ -16,8 +16,8 @@ Monorepo using [uv workspaces](https://docs.astral.sh/uv/concepts/workspaces/). 
 
 ```
 packages/
-├── core/       # astral-core    — shared models and storage
-├── ingest/     # astral-ingest  — data scraping
+├── core/       # astral-core    — shared models and storage (ContentItem, ContentStore)
+├── ingest/     # astral-ingest  — RSS/API scrapers and CLI
 ├── author/     # astral-author  — turning scraped data into newsletters
 ├── serve/      # astral-serve   — content serving (the app)
 └── eval/       # astral-eval    — evaluation and quality iteration
@@ -25,10 +25,19 @@ packages/
 
 Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 
+### Key concepts
+
+- **ContentItem** (`astral_core.models`) — the normalized schema all scrapers produce. ID is `sha256(url)[:16]`.
+- **ContentStore** (`astral_core.store`) — JSON file storage at `data/items/{YYYY-MM-DD}/{id}.json`. One file per item.
+- **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds and API endpoints. Add new sources here, not in code.
+- Dedup is URL-hash based: scrapers check `store.exists(id)` before saving.
+
 ## Development
 
 - Keep implementations simple — avoid premature abstraction
 - Always use `uv run` to execute Python commands — never call `python` or `python3` directly
+- Workspace packages depend on each other via `tool.uv.sources` (e.g., `astral-core = { workspace = true }` in astral-ingest's pyproject.toml)
+- Scraped data lives in `data/` (gitignored) — never commit it
 
 ### uv
 
@@ -43,3 +52,21 @@ This project uses [uv](https://docs.astral.sh/uv/) for Python package and projec
 Dependencies are declared per-package in each `packages/*/pyproject.toml`. The single workspace lockfile (`uv.lock`) at the root should be committed. Never edit it manually.
 
 For more details, see https://docs.astral.sh/uv/llms.txt
+
+### CLI
+
+```bash
+# List all configured news sources
+uv run --package astral-ingest astral-ingest sources
+
+# Scrape all sources (or one with --source "Name")
+uv run --package astral-ingest astral-ingest scrape
+uv run --package astral-ingest astral-ingest scrape --source "SpaceNews" --dry-run
+
+# Export stored items as markdown or JSON
+uv run --package astral-ingest astral-ingest export --since 7 --format markdown
+```
+
+## Design references
+
+The [Space News Scraping Infrastructure](https://www.notion.so/31677391e16b80719cbeefbf3d39d2fd) Notion doc contains the full source-by-source feasibility analysis, content schema rationale, and multi-phase roadmap. Consult it when adding new source types or evolving the pipeline.
