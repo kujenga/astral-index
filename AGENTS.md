@@ -12,7 +12,18 @@ Inspired by [The Orbital Index](https://orbitalindex.com/) and [AI News](https:/
 
 ## Project Structure
 
-TBD as the project takes shape.
+Monorepo using [uv workspaces](https://docs.astral.sh/uv/concepts/workspaces/). The root `pyproject.toml` defines the workspace; each member lives under `packages/`:
+
+```
+packages/
+├── core/       # astral-core    — shared models and storage
+├── ingest/     # astral-ingest  — data scraping
+├── author/     # astral-author  — turning scraped data into newsletters
+├── serve/      # astral-serve   — content serving (the app)
+└── eval/       # astral-eval    — evaluation and quality iteration
+```
+
+Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 
 ## Development
 
@@ -22,13 +33,12 @@ TBD as the project takes shape.
 
 This project uses [uv](https://docs.astral.sh/uv/) for Python package and project management.
 
-- `uv add <package>` — add a dependency
-- `uv add --dev <package>` — add a dev dependency
-- `uv sync` — install all dependencies from the lockfile
-- `uv run <command>` — run a command in the project environment
-- `uv run python <script>` — run a Python script
+- `uv sync --all-packages` — install all workspace packages and their dependencies
+- `uv run --package <name> <command>` — run a command in a specific package's environment
+- `uv add --package <name> <dep>` — add a dependency to a specific package
+- `uv add --dev <dep>` — add a dev dependency (root-level)
 - `uv lock` — update the lockfile without installing
 
-Dependencies are declared in `pyproject.toml`. The lockfile (`uv.lock`) should be committed. Never edit it manually.
+Dependencies are declared per-package in each `packages/*/pyproject.toml`. The single workspace lockfile (`uv.lock`) at the root should be committed. Never edit it manually.
 
 For more details, see https://docs.astral.sh/uv/llms.txt

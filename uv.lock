@@ -1,0 +1,43 @@
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[manifest]
+members = [
+    "astral-author",
+    "astral-core",
+    "astral-eval",
+    "astral-index",
+    "astral-ingest",
+    "astral-serve",
+]
+
+[[package]]
+name = "astral-author"
+version = "0.1.0"
+source = { editable = "packages/author" }
+
+[[package]]
+name = "astral-core"
+version = "0.1.0"
+source = { editable = "packages/core" }
+
+[[package]]
+name = "astral-eval"
+version = "0.1.0"
+source = { editable = "packages/eval" }
+
+[[package]]
+name = "astral-index"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "astral-ingest"
+version = "0.1.0"
+source = { editable = "packages/ingest" }
+
+[[package]]
+name = "astral-serve"
+version = "0.1.0"
+source = { editable = "packages/serve" }
