@@ -317,6 +317,80 @@ async def _expand(
 
 @cli.command()
 @click.option("--since", "since_days", default=7, type=int, help="Days to look back.")
+@click.option("--llm/--no-llm", default=True, help="Enable LLM fallback.")
+@click.option("--dry-run", is_flag=True, help="Print results without saving.")
+def classify(since_days: int, llm: bool, dry_run: bool) -> None:
+    """Classify uncategorized items using keywords + optional LLM."""
+    asyncio.run(_classify(since_days, llm, dry_run))
+
+
+async def _classify(since_days: int, use_llm: bool, dry_run: bool) -> None:
+    from .classify.keywords import classify_by_keywords
+    from .classify.llm import classify_batch_with_llm
+
+    store = ContentStore()
+    since = datetime.now(UTC) - timedelta(days=since_days)
+    all_items = store.list_items(since=since)
+
+    # Find items with no categories
+    uncategorized = [item for item in all_items if not item.categories]
+
+    if not uncategorized:
+        click.echo("No uncategorized items found.")
+        return
+
+    click.echo(f"Found {len(uncategorized)} uncategorized items")
+
+    # Pass 1: keyword classification
+    keyword_classified = 0
+    still_uncategorized = []
+
+    for item in uncategorized:
+        cats = classify_by_keywords(item.title, item.body_text or item.excerpt)
+        if cats:
+            keyword_classified += 1
+            if dry_run:
+                labels = ", ".join(c.value for c in cats)
+                click.echo(f"  [keywords] {item.title[:60]}... -> {labels}")
+            else:
+                item.categories = cats
+                store.save(item)
+        else:
+            still_uncategorized.append(item)
+
+    click.echo(f"Pass 1 (keywords): {keyword_classified} classified")
+
+    # Pass 2: LLM fallback
+    llm_classified = 0
+    if use_llm and still_uncategorized:
+        click.echo(f"Pass 2 (LLM): classifying {len(still_uncategorized)} remaining...")
+        batch = [
+            (item.title, item.body_text or item.excerpt) for item in still_uncategorized
+        ]
+        results = await classify_batch_with_llm(batch)
+
+        for item, cat in zip(still_uncategorized, results, strict=True):
+            if cat:
+                llm_classified += 1
+                if dry_run:
+                    click.echo(f"  [llm] {item.title[:60]}... -> {cat.value}")
+                else:
+                    item.categories = [cat]
+                    store.save(item)
+        click.echo(f"Pass 2 (LLM): {llm_classified} classified")
+    elif still_uncategorized:
+        click.echo(
+            f"{len(still_uncategorized)} items remain uncategorized"
+            " (use --llm to enable LLM fallback)"
+        )
+
+    total = keyword_classified + llm_classified
+    action = "would classify" if dry_run else "classified"
+    click.echo(f"\nDone: {action} {total}/{len(uncategorized)} items")
+
+
+@cli.command()
+@click.option("--since", "since_days", default=7, type=int, help="Days to look back.")
 @click.option("--source", "source_name", default=None, help="Filter by source name.")
 @click.option(
     "--format",
