@@ -8,6 +8,7 @@ from typing import Any
 import click
 import yaml
 from astral_core import ContentStore
+from dotenv import load_dotenv
 
 from .scrapers.reddit import RedditScraper
 from .scrapers.rss import RSSFeedScraper
@@ -53,6 +54,7 @@ def _build_reddit_scraper(sources: dict[str, Any]) -> RedditScraper | None:
 @click.group()
 def cli() -> None:
     """Astral Index — space news ingestion."""
+    load_dotenv()
 
 
 @cli.command()

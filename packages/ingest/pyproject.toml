@@ -17,6 +17,7 @@ dependencies = [
     "newspaper4k>=0.9.3",
     "readability-lxml>=0.8.4",
     "pdfplumber>=0.11.0",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
