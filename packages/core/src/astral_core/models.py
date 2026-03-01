@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime
 from enum import StrEnum
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +30,36 @@ class SpaceCategory(StrEnum):
     DEFENSE_SPACE = "defense_space"
     SATELLITE_COMMS = "satellite_comms"
     DEEP_SPACE = "deep_space"
+
+
+class ExtractionMethod(StrEnum):
+    FEED_FULL_TEXT = "feed_full_text"
+    FEED_EXCERPT = "feed_excerpt"
+    REDDIT_SELF = "reddit_self"
+    REDDIT_LINK = "reddit_link"
+    TRAFILATURA = "trafilatura"
+    NEWSPAPER = "newspaper"
+    READABILITY = "readability"
+    PLAYWRIGHT = "playwright"
+    PDF = "pdf"
+    SNAPI = "snapi"
+
+
+# Tracking params stripped during URL normalization
+_TRACKING_PARAMS = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "fbclid", "gclid", "ref", "source", "mc_cid", "mc_eid",
+})
+
+
+def normalize_url(url: str) -> str:
+    """Strip tracking params and normalize a URL for dedup."""
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query, keep_blank_values=False)
+    cleaned = {k: v for k, v in params.items() if k not in _TRACKING_PARAMS}
+    # Rebuild with sorted params for deterministic output
+    new_query = urlencode(cleaned, doseq=True) if cleaned else ""
+    return urlunparse(parsed._replace(query=new_query, fragment=""))
 
 
 def url_hash(url: str) -> str:
@@ -73,3 +104,11 @@ class ContentItem(BaseModel):
     # Quality signals
     is_paywalled: bool = False
     links_referenced: list[str] = []
+
+    # Extraction tracking (Phase 2)
+    extraction_method: ExtractionMethod | None = None
+    expanded_at: datetime | None = None
+
+    # Reddit-specific signals
+    reddit_score: int | None = None
+    top_comment: str | None = None
