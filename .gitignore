@@ -1,1 +1,5 @@
 .claude/*.local.*
+__pycache__/
+
+# Scraped data (generated at runtime)
+data/
