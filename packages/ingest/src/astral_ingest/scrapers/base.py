@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 import httpx
 
@@ -14,7 +15,7 @@ USER_AGENT = (
 DEFAULT_TIMEOUT = 30.0
 
 
-def make_http_client(**kwargs: object) -> httpx.AsyncClient:
+def make_http_client(**kwargs: Any) -> httpx.AsyncClient:
     return httpx.AsyncClient(
         headers={"User-Agent": USER_AGENT},
         timeout=DEFAULT_TIMEOUT,

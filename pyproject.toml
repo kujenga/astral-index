@@ -10,7 +10,7 @@ requires-python = ">=3.14"
 dependencies = []
 
 [dependency-groups]
-dev = ["pre-commit>=4.2"]
+dev = ["pre-commit>=4.2", "ty>=0.0.19"]
 
 [tool.uv.workspace]
 members = ["packages/*"]
@@ -38,3 +38,7 @@ known-first-party = [
     "astral_serve",
     "astral_eval",
 ]
+
+[tool.ty.analysis]
+# Optional dependencies not present in the venv
+allowed-unresolved-imports = ["playwright", "playwright.**", "pdfplumber"]
