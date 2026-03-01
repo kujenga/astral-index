@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import html
-import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,20 +7,8 @@ import feedparser
 from astral_core import ContentItem, ContentType, SpaceCategory, content_hash, url_hash
 from dateutil.parser import parse as parse_date
 
+from ..util import extract_links, strip_html
 from .base import BaseScraper, make_http_client
-
-
-# Strip HTML tags to get plain text from feed content
-_TAG_RE = re.compile(r"<[^>]+>")
-
-
-def _strip_html(text: str) -> str:
-    return html.unescape(_TAG_RE.sub("", text)).strip()
-
-
-def _extract_links(html_content: str) -> list[str]:
-    """Pull href values out of HTML content."""
-    return re.findall(r'href=["\']([^"\']+)["\']', html_content)
 
 
 class RSSFeedScraper(BaseScraper):
@@ -74,8 +60,8 @@ class RSSFeedScraper(BaseScraper):
             elif hasattr(entry, "summary"):
                 raw_body = entry.summary or ""
 
-            body_text = _strip_html(raw_body) if raw_body else None
-            links = _extract_links(raw_body) if raw_body else []
+            body_text = strip_html(raw_body) if raw_body else None
+            links = extract_links(raw_body) if raw_body else []
 
             excerpt = None
             if body_text:
