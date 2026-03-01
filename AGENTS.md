@@ -29,9 +29,10 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 
 - **ContentItem** (`astral_core.models`) — the normalized schema all scrapers produce. ID is `sha256(url)[:16]`.
 - **ContentStore** (`astral_core.store`) — JSON file storage at `data/items/{YYYY-MM-DD}/{id}.json`. One file per item.
-- **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds, API endpoints, and Reddit subreddits. Add new sources here, not in code.
-- **ExtractionMethod** (`astral_core.models`) — enum tracking how body text was obtained (feed, Reddit, trafilatura, newspaper, readability, playwright, pdf, snapi).
+- **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds, API endpoints, Reddit subreddits, arXiv feeds, Bluesky accounts, and Twitter accounts. Add new sources here, not in code.
+- **ExtractionMethod** (`astral_core.models`) — enum tracking how body text was obtained (feed, Reddit, trafilatura, newspaper, readability, playwright, pdf, snapi, bluesky_api, socialdata_api, arxiv_rss).
 - **Link expansion** (`astral_ingest.expand`) — three-stage cascade (trafilatura → newspaper4k → readability-lxml) to fetch full article text for excerpt-only items. Optional Playwright JS rendering and PDF extraction.
+- **Category classifier** (`astral_ingest.classify`) — two-pass classification: keyword regex (~70% coverage, free) then Claude Haiku LLM fallback for the rest.
 - **Enhanced dedup** (`astral_ingest.dedup`) — URL normalization (strips tracking params), content hash, and title Levenshtein distance.
 - Basic dedup: scrapers check `store.exists(id)` before saving.
 
@@ -81,6 +82,10 @@ uv run --package astral-ingest astral-ingest export --since 7 --format markdown
 # Expand excerpt-only items by fetching full article text
 uv run --package astral-ingest astral-ingest expand --since 7
 uv run --package astral-ingest astral-ingest expand --since 1 --js --concurrency 3 --dry-run
+
+# Classify uncategorized items (keywords first, then LLM fallback)
+uv run --package astral-ingest astral-ingest classify --since 7
+uv run --package astral-ingest astral-ingest classify --since 7 --no-llm --dry-run
 ```
 
 ### Linting, Formatting, and Type Checking
@@ -102,9 +107,14 @@ uv run pre-commit run --all-files
 
 Configuration lives in the root `pyproject.toml`.
 
-### Reddit credentials
+### Credentials
 
-The Reddit scraper requires `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` environment variables (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT` overrides the default. Store these in a `.env` file (gitignored).
+All credentials are stored in `.env` (gitignored) and loaded automatically via `python-dotenv`.
+
+- **Reddit**: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT`.
+- **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
+- **LLM classifier**: `ANTHROPIC_API_KEY` — for Claude Haiku fallback classification. Keyword pass works without it.
+- **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Design references
 
