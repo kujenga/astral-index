@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 import feedparser
-from astral_core import ContentItem, ContentType, SpaceCategory, content_hash, url_hash
 from dateutil.parser import parse as parse_date
+
+from astral_core import ContentItem, ContentType, SpaceCategory, content_hash, url_hash
 
 from ..util import extract_links, strip_html
 from .base import BaseScraper, make_http_client
@@ -43,7 +45,7 @@ class RSSFeedScraper(BaseScraper):
         self._last_modified = resp.headers.get("Last-Modified")
 
         feed = feedparser.parse(resp.text)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         items: list[ContentItem] = []
 
         for entry in feed.entries:
@@ -73,16 +75,16 @@ class RSSFeedScraper(BaseScraper):
 
             published = None
             if hasattr(entry, "published") and entry.published:
-                try:
+                with contextlib.suppress(ValueError, OverflowError):
                     published = parse_date(entry.published)
-                except (ValueError, OverflowError):
-                    pass
 
             word_count = len(body_text.split()) if body_text else None
             c_hash = content_hash(body_text) if body_text else None
 
             categories = [
-                SpaceCategory(c) for c in self.category_hints if c in SpaceCategory.__members__.values()
+                SpaceCategory(c)
+                for c in self.category_hints
+                if c in SpaceCategory.__members__.values()
             ]
 
             items.append(

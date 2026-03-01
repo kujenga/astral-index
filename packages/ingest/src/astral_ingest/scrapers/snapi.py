@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import contextlib
+from datetime import UTC, datetime
 from typing import Any
 
 from astral_core import ContentItem, ContentType, content_hash, url_hash
@@ -43,7 +44,7 @@ class SNAPIScraper(BaseScraper):
 
 
 def _to_content_item(entry: dict[str, Any]) -> ContentItem:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     link = entry.get("url", "")
     item_id = url_hash(link)
     body = entry.get("summary") or ""
@@ -51,10 +52,8 @@ def _to_content_item(entry: dict[str, Any]) -> ContentItem:
 
     published = None
     if entry.get("published_at"):
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             published = datetime.fromisoformat(entry["published_at"])
-        except (ValueError, TypeError):
-            pass
 
     c_hash = content_hash(body) if body else None
 

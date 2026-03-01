@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 async def fetch_js_rendered(url: str, timeout_ms: int = 30_000) -> str | None:
     """Fetch a page using headless Chromium. Returns HTML or None.
 
-    Requires playwright to be installed (`pip install playwright` + `playwright install chromium`).
+    Requires playwright (`pip install playwright` + `playwright install chromium`).
     Returns None gracefully if Playwright isn't available.
     """
     try:

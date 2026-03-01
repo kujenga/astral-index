@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
+
 from astral_core import ContentItem, ContentStore, ExtractionMethod
 
 from ..scrapers.base import make_http_client
@@ -53,13 +54,15 @@ async def expand_item(
     if "application/pdf" in content_type or url.lower().endswith(".pdf"):
         result = extract_from_pdf(resp.content)
         if result:
-            return item.model_copy(update={
-                "body_text": result.text,
-                "word_count": result.word_count,
-                "extraction_method": result.method,
-                "expanded_at": datetime.now(timezone.utc),
-                "is_paywalled": is_paywalled(result.text),
-            })
+            return item.model_copy(
+                update={
+                    "body_text": result.text,
+                    "word_count": result.word_count,
+                    "extraction_method": result.method,
+                    "expanded_at": datetime.now(UTC),
+                    "is_paywalled": is_paywalled(result.text),
+                }
+            )
         return None
 
     # HTML extraction
@@ -80,14 +83,16 @@ async def expand_item(
         logger.debug("All extraction methods failed for %s", url)
         return None
 
-    return item.model_copy(update={
-        "body_text": result.text,
-        "word_count": result.word_count,
-        "excerpt": result.text[:500] if len(result.text) > 500 else result.text,
-        "extraction_method": result.method,
-        "expanded_at": datetime.now(timezone.utc),
-        "is_paywalled": is_paywalled(result.text),
-    })
+    return item.model_copy(
+        update={
+            "body_text": result.text,
+            "word_count": result.word_count,
+            "excerpt": result.text[:500] if len(result.text) > 500 else result.text,
+            "extraction_method": result.method,
+            "expanded_at": datetime.now(UTC),
+            "is_paywalled": is_paywalled(result.text),
+        }
+    )
 
 
 async def expand_items(
@@ -109,7 +114,10 @@ async def expand_items(
     async def _process(item: ContentItem, client: httpx.AsyncClient) -> None:
         async with semaphore:
             result = await expand_item(
-                item, rate_limiter=rate_limiter, client=client, use_js=use_js,
+                item,
+                rate_limiter=rate_limiter,
+                client=client,
+                use_js=use_js,
             )
             if result:
                 if not dry_run:

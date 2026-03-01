@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpraw
+
 from astral_core import (
     ContentItem,
     ContentType,
@@ -22,10 +23,17 @@ from .base import BaseScraper
 logger = logging.getLogger(__name__)
 
 # Bots whose comments we skip
-_BOT_NAMES = frozenset({
-    "AutoModerator", "RemindMeBot", "sneakpeekbot", "GifReversingBot",
-    "WikiSummarizerBot", "SaveVideo", "vredditdownloader",
-})
+_BOT_NAMES = frozenset(
+    {
+        "AutoModerator",
+        "RemindMeBot",
+        "sneakpeekbot",
+        "GifReversingBot",
+        "WikiSummarizerBot",
+        "SaveVideo",
+        "vredditdownloader",
+    }
+)
 
 
 class RedditScraper(BaseScraper):
@@ -37,7 +45,9 @@ class RedditScraper(BaseScraper):
 
     def _categories_for_subreddit(self, subreddit: str) -> list[SpaceCategory]:
         hints = self.category_map.get(subreddit.lower(), [])
-        return [SpaceCategory(c) for c in hints if c in SpaceCategory.__members__.values()]
+        return [
+            SpaceCategory(c) for c in hints if c in SpaceCategory.__members__.values()
+        ]
 
     async def fetch(self) -> list[ContentItem]:
         client_id = os.environ.get("REDDIT_CLIENT_ID")
@@ -48,7 +58,9 @@ class RedditScraper(BaseScraper):
         )
 
         if not client_id or not client_secret:
-            logger.warning("REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET not set, skipping Reddit")
+            logger.warning(
+                "REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET not set, skipping Reddit"
+            )
             return []
 
         reddit = asyncpraw.Reddit(
@@ -77,7 +89,7 @@ class RedditScraper(BaseScraper):
         return items
 
     async def _submission_to_item(self, submission: Any) -> ContentItem | None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         permalink = f"https://reddit.com{submission.permalink}"
         item_id = url_hash(permalink)
 
@@ -85,7 +97,7 @@ class RedditScraper(BaseScraper):
         sub_name = str(submission.subreddit).lower()
         categories = self._categories_for_subreddit(sub_name)
 
-        published = datetime.fromtimestamp(submission.created_utc, tz=timezone.utc)
+        published = datetime.fromtimestamp(submission.created_utc, tz=UTC)
 
         # Self post vs link post
         if submission.is_self:

@@ -37,7 +37,9 @@ def _try_trafilatura(html: str, url: str) -> ExtractionResult | None:
     wc = len(text.split())
     if wc < _MIN_WORDS:
         return None
-    return ExtractionResult(text=text, method=ExtractionMethod.TRAFILATURA, word_count=wc)
+    return ExtractionResult(
+        text=text, method=ExtractionMethod.TRAFILATURA, word_count=wc
+    )
 
 
 def _try_newspaper(html: str, url: str) -> ExtractionResult | None:
@@ -76,7 +78,9 @@ def _try_readability(html: str, url: str) -> ExtractionResult | None:
     wc = len(text.split())
     if wc < _MIN_WORDS:
         return None
-    return ExtractionResult(text=text, method=ExtractionMethod.READABILITY, word_count=wc)
+    return ExtractionResult(
+        text=text, method=ExtractionMethod.READABILITY, word_count=wc
+    )
 
 
 def extract_from_html(html: str, url: str) -> ExtractionResult | None:
@@ -89,8 +93,15 @@ def extract_from_html(html: str, url: str) -> ExtractionResult | None:
         try:
             result = extractor(html, url)
             if result:
-                logger.debug("Extracted %d words via %s from %s", result.word_count, result.method, url)
+                logger.debug(
+                    "Extracted %d words via %s from %s",
+                    result.word_count,
+                    result.method,
+                    url,
+                )
                 return result
         except Exception:
-            logger.exception("Extraction failed with %s for %s", extractor.__name__, url)
+            logger.exception(
+                "Extraction failed with %s for %s", extractor.__name__, url
+            )
     return None

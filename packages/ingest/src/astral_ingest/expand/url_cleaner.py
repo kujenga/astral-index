@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 import httpx
+
 from astral_core import normalize_url
 
 from ..scrapers.base import make_http_client
@@ -12,16 +13,27 @@ from ..scrapers.base import make_http_client
 logger = logging.getLogger(__name__)
 
 # Domains that host shortened/redirect URLs
-_SHORT_DOMAINS = frozenset({
-    "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly",
-    "is.gd", "buff.ly", "dlvr.it", "j.mp", "lnkd.in",
-})
+_SHORT_DOMAINS = frozenset(
+    {
+        "bit.ly",
+        "t.co",
+        "tinyurl.com",
+        "goo.gl",
+        "ow.ly",
+        "is.gd",
+        "buff.ly",
+        "dlvr.it",
+        "j.mp",
+        "lnkd.in",
+    }
+)
 
 
 def _is_short_url(url: str) -> bool:
     """Check if a URL is from a known shortener domain."""
     try:
         from urllib.parse import urlparse
+
         host = urlparse(url).netloc.lower()
         return host in _SHORT_DOMAINS
     except Exception:

@@ -9,5 +9,32 @@ authors = [
 requires-python = ">=3.14"
 dependencies = []
 
+[dependency-groups]
+dev = ["pre-commit>=4.2"]
+
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.ruff]
+src = ["packages/*/src"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "astral_core",
+    "astral_ingest",
+    "astral_author",
+    "astral_serve",
+    "astral_eval",
+]

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from importlib.resources import files
 from typing import Any
 
 import click
 import yaml
-from astral_core import ContentStore
 from dotenv import load_dotenv
+
+from astral_core import ContentStore
 
 from .scrapers.reddit import RedditScraper
 from .scrapers.rss import RSSFeedScraper
@@ -79,7 +80,9 @@ def sources() -> None:
 
 
 @cli.command()
-@click.option("--source", "source_name", default=None, help="Scrape a single source by name.")
+@click.option(
+    "--source", "source_name", default=None, help="Scrape a single source by name."
+)
 @click.option("--dry-run", is_flag=True, help="Print items without saving.")
 def scrape(source_name: str | None, dry_run: bool) -> None:
     """Scrape RSS feeds, Spaceflight News API, and Reddit."""
@@ -159,7 +162,9 @@ async def _scrape(source_name: str | None, dry_run: bool) -> None:
                         skipped += 1
                         continue
                     if dry_run:
-                        score = f" [score:{item.reddit_score}]" if item.reddit_score else ""
+                        score = (
+                            f" [score:{item.reddit_score}]" if item.reddit_score else ""
+                        )
                         click.echo(f"\n  [{item.source_name}] {item.title}{score}")
                     else:
                         store.save(item)
@@ -181,16 +186,19 @@ def expand(since_days: int, js: bool, concurrency: int, dry_run: bool) -> None:
     asyncio.run(_expand(since_days, js, concurrency, dry_run))
 
 
-async def _expand(since_days: int, use_js: bool, concurrency: int, dry_run: bool) -> None:
+async def _expand(
+    since_days: int, use_js: bool, concurrency: int, dry_run: bool
+) -> None:
     from .expand import expand_items
 
     store = ContentStore()
-    since = datetime.now(timezone.utc) - timedelta(days=since_days)
+    since = datetime.now(UTC) - timedelta(days=since_days)
     all_items = store.list_items(since=since)
 
     # Find items that need expansion: no body_text and never expanded
     candidates = [
-        item for item in all_items
+        item
+        for item in all_items
         if item.body_text is None and item.expanded_at is None
     ]
 
@@ -209,7 +217,10 @@ async def _expand(since_days: int, use_js: bool, concurrency: int, dry_run: bool
         return
 
     expanded = await expand_items(
-        candidates, store, concurrency=concurrency, use_js=use_js,
+        candidates,
+        store,
+        concurrency=concurrency,
+        use_js=use_js,
     )
 
     click.echo(f"\nExpanded {len(expanded)}/{len(candidates)} items")
@@ -232,7 +243,7 @@ async def _expand(since_days: int, use_js: bool, concurrency: int, dry_run: bool
 def export(since_days: int, source_name: str | None, fmt: str) -> None:
     """Export stored items as markdown or JSON."""
     store = ContentStore()
-    since = datetime.now(timezone.utc) - timedelta(days=since_days)
+    since = datetime.now(UTC) - timedelta(days=since_days)
     items = store.list_items(since=since, source_name=source_name)
 
     if not items:
@@ -248,7 +259,9 @@ def export(since_days: int, source_name: str | None, fmt: str) -> None:
     else:
         click.echo(f"# Space News Digest ({since_days}d)\n")
         current_source = None
-        for item in sorted(items, key=lambda i: (i.source_name, i.published_at or i.scraped_at)):
+        for item in sorted(
+            items, key=lambda i: (i.source_name, i.published_at or i.scraped_at)
+        ):
             if item.source_name != current_source:
                 current_source = item.source_name
                 click.echo(f"\n## {current_source}\n")
@@ -258,6 +271,10 @@ def export(since_days: int, source_name: str | None, fmt: str) -> None:
             click.echo(f"- **{item.title}** ({date_str})")
             click.echo(f"  {item.source_url}")
             if item.excerpt:
-                short = item.excerpt[:200] + "..." if len(item.excerpt) > 200 else item.excerpt
+                short = (
+                    item.excerpt[:200] + "..."
+                    if len(item.excerpt) > 200
+                    else item.excerpt
+                )
                 click.echo(f"  > {short}")
             click.echo()

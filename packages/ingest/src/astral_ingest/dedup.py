@@ -21,7 +21,7 @@ def _normalize_title(title: str) -> str:
 
 
 def _levenshtein_ratio(a: str, b: str) -> float:
-    """Levenshtein distance as a 0–1 ratio (0 = identical, 1 = completely different)."""
+    """Levenshtein distance as a 0-1 ratio (0 = identical, 1 = completely different)."""
     if a == b:
         return 0.0
     len_a, len_b = len(a), len(b)

@@ -46,10 +46,21 @@ class ExtractionMethod(StrEnum):
 
 
 # Tracking params stripped during URL normalization
-_TRACKING_PARAMS = frozenset({
-    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "fbclid", "gclid", "ref", "source", "mc_cid", "mc_eid",
-})
+_TRACKING_PARAMS = frozenset(
+    {
+        "utm_source",
+        "utm_medium",
+        "utm_campaign",
+        "utm_term",
+        "utm_content",
+        "fbclid",
+        "gclid",
+        "ref",
+        "source",
+        "mc_cid",
+        "mc_eid",
+    }
+)
 
 
 def normalize_url(url: str) -> str:

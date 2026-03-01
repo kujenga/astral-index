@@ -19,7 +19,10 @@ class PDFResult:
 
 
 def extract_from_pdf(content: bytes) -> PDFResult | None:
-    """Extract text from PDF bytes. Returns None if pdfplumber isn't installed or extraction fails."""
+    """Extract text from PDF bytes.
+
+    Returns None if pdfplumber is missing or extraction fails.
+    """
     try:
         import pdfplumber
     except ImportError:
