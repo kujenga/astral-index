@@ -165,3 +165,17 @@ snapi:
     - /articles/
     - /blogs/
   poll_interval_hours: 4
+
+reddit:
+  subreddits: [space, spacex, astronomy, ula, rocketlab, BlueOrigin, spaceflight, astrophysics]
+  score_threshold: 50
+  limit: 50
+  category_map:
+    space: [space_science, launch_vehicles]
+    spacex: [launch_vehicles, commercial_space]
+    astronomy: [space_science, deep_space]
+    ula: [launch_vehicles]
+    rocketlab: [launch_vehicles, commercial_space]
+    blueorigin: [launch_vehicles, commercial_space]
+    spaceflight: [launch_vehicles]
+    astrophysics: [space_science, deep_space]
