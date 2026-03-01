@@ -29,8 +29,11 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 
 - **ContentItem** (`astral_core.models`) — the normalized schema all scrapers produce. ID is `sha256(url)[:16]`.
 - **ContentStore** (`astral_core.store`) — JSON file storage at `data/items/{YYYY-MM-DD}/{id}.json`. One file per item.
-- **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds and API endpoints. Add new sources here, not in code.
-- Dedup is URL-hash based: scrapers check `store.exists(id)` before saving.
+- **Sources config** (`astral_ingest/sources.yaml`) — all RSS feeds, API endpoints, and Reddit subreddits. Add new sources here, not in code.
+- **ExtractionMethod** (`astral_core.models`) — enum tracking how body text was obtained (feed, Reddit, trafilatura, newspaper, readability, playwright, pdf, snapi).
+- **Link expansion** (`astral_ingest.expand`) — three-stage cascade (trafilatura → newspaper4k → readability-lxml) to fetch full article text for excerpt-only items. Optional Playwright JS rendering and PDF extraction.
+- **Enhanced dedup** (`astral_ingest.dedup`) — URL normalization (strips tracking params), content hash, and title Levenshtein distance.
+- Basic dedup: scrapers check `store.exists(id)` before saving.
 
 ## Public repository
 
@@ -74,7 +77,15 @@ uv run --package astral-ingest astral-ingest scrape --source "SpaceNews" --dry-r
 
 # Export stored items as markdown or JSON
 uv run --package astral-ingest astral-ingest export --since 7 --format markdown
+
+# Expand excerpt-only items by fetching full article text
+uv run --package astral-ingest astral-ingest expand --since 7
+uv run --package astral-ingest astral-ingest expand --since 1 --js --concurrency 3 --dry-run
 ```
+
+### Reddit credentials
+
+The Reddit scraper requires `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` environment variables (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT` overrides the default. Store these in a `.env` file (gitignored).
 
 ## Design references
 
