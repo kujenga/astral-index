@@ -9,10 +9,11 @@ rss_sources:
     category_hints: [space_science]
     poll_interval_hours: 4
 
-  - name: "Parabolic Arc"
-    url: "https://parabolicarc.com/feed/"
+  # Parabolic Arc merged into SpaceNews (2023). Doug Messier now on Substack.
+  - name: "Parabolic Arc (Doug Messier)"
+    url: "https://douglasmmessier.substack.com/feed"
     content_type: full_text
-    category_hints: [commercial_space, launch_vehicles]
+    category_hints: [commercial_space, launch_vehicles, policy]
     poll_interval_hours: 4
 
   - name: "Behind the Black"
@@ -91,13 +92,13 @@ rss_sources:
     poll_interval_hours: 4
 
   - name: "The Space Review"
-    url: "https://thespacereview.com/article/rss.xml"
+    url: "https://thespacereview.com/articles.xml"
     content_type: excerpt
     category_hints: [policy]
     poll_interval_hours: 4
 
   - name: "Planetary Society"
-    url: "https://planetary.org/articles/rss"
+    url: "https://planetary.org/rss/articles"
     content_type: excerpt
     category_hints: [space_science]
     poll_interval_hours: 4
@@ -128,7 +129,7 @@ rss_sources:
     poll_interval_hours: 4
 
   - name: "JAXA Global"
-    url: "https://global.jaxa.jp/news/rss.xml"
+    url: "https://global.jaxa.jp/rss/press.rdf"
     content_type: excerpt
     category_hints: [international]
     poll_interval_hours: 4
