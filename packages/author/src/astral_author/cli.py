@@ -146,8 +146,13 @@ async def _draft(
     newsletter = await pipeline.run(items, max_items=max_items)
 
     if output_path:
-        Path(output_path).write_text(newsletter.markdown)
-        click.echo(f"Draft written to {output_path}")
+        md_path = Path(output_path)
+        md_path.write_text(newsletter.markdown)
+        click.echo(f"Draft written to {md_path}")
+
+        json_path = md_path.with_suffix(".json")
+        json_path.write_text(newsletter.model_dump_json(indent=2))
+        click.echo(f"JSON written to {json_path}")
     else:
         click.echo(newsletter.markdown)
 
@@ -237,10 +242,14 @@ async def _compare(
         pipeline = build_strategy(name)
         newsletter = await pipeline.run(items, max_items=max_items)
 
-        # Write markdown
+        # Write markdown and JSON sidecar
         md_path = out / f"{today}_{name}.md"
         md_path.write_text(newsletter.markdown)
-        click.echo(f"  -> {md_path}")
+
+        json_path = out / f"{today}_{name}.json"
+        json_path.write_text(newsletter.model_dump_json(indent=2))
+
+        click.echo(f"  -> {md_path} / {json_path.name}")
 
         results.append(newsletter)
 
