@@ -16,16 +16,16 @@ from astral_ingest.expand.pipeline import expand_item, expand_items
 from astral_ingest.expand.rate_limiter import DomainRateLimiter
 from astral_ingest.expand.url_cleaner import clean_url
 
-from .conftest import SAMPLE_HTML_ARTICLE, _make_item
-
 # ---------------------------------------------------------------------------
 # Extractor cascade
 # ---------------------------------------------------------------------------
 
 
 class TestExtractorCascade:
-    def test_extracts_from_html(self):
-        result = extract_from_html(SAMPLE_HTML_ARTICLE, "https://example.com/article")
+    def test_extracts_from_html(self, canned):
+        result = extract_from_html(
+            canned.sample_html_article, "https://example.com/article"
+        )
         assert result is not None
         assert result.word_count >= 50
         assert result.method in (
@@ -90,19 +90,19 @@ class TestURLCleaner:
 
 
 class TestExpandPipeline:
-    async def test_expand_item_sets_fields(self, patch_http):
+    async def test_expand_item_sets_fields(self, patch_http, make_item, canned):
         """Mocked HTML fetch → extract → updated ContentItem."""
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
-                text=SAMPLE_HTML_ARTICLE,
+                text=canned.sample_html_article,
                 headers={"content-type": "text/html"},
             )
 
         patch_http(handler)
 
-        item = _make_item(
+        item = make_item(
             body_text=None,
             canonical_url="https://spacenews.com/article",
         )
@@ -118,13 +118,13 @@ class TestExpandPipeline:
         assert result.extraction_method is not None
         assert result.expanded_at is not None
 
-    async def test_expand_item_http_404_returns_none(self, patch_http):
+    async def test_expand_item_http_404_returns_none(self, patch_http, make_item):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(404)
 
         patch_http(handler)
 
-        item = _make_item(
+        item = make_item(
             body_text=None,
             canonical_url="https://spacenews.com/gone",
         )
@@ -135,19 +135,21 @@ class TestExpandPipeline:
 
         assert result is None
 
-    async def test_expand_items_saves_to_store(self, patch_http, tmp_store):
+    async def test_expand_items_saves_to_store(
+        self, patch_http, tmp_store, make_item, canned
+    ):
         """expand_items persists results to ContentStore."""
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
-                text=SAMPLE_HTML_ARTICLE,
+                text=canned.sample_html_article,
                 headers={"content-type": "text/html"},
             )
 
         patch_http(handler)
 
-        item = _make_item(
+        item = make_item(
             body_text=None,
             canonical_url="https://spacenews.com/article",
         )
@@ -157,19 +159,21 @@ class TestExpandPipeline:
         assert len(results) == 1
         assert tmp_store.exists(results[0].id)
 
-    async def test_expand_items_dry_run_no_save(self, patch_http, tmp_store):
+    async def test_expand_items_dry_run_no_save(
+        self, patch_http, tmp_store, make_item, canned
+    ):
         """dry_run=True does not persist to store."""
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
-                text=SAMPLE_HTML_ARTICLE,
+                text=canned.sample_html_article,
                 headers={"content-type": "text/html"},
             )
 
         patch_http(handler)
 
-        item = _make_item(
+        item = make_item(
             body_text=None,
             canonical_url="https://spacenews.com/article",
         )

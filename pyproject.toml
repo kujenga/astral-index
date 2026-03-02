@@ -47,6 +47,7 @@ known-first-party = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["packages/*/tests"]
+# Test directories must NOT have __init__.py to avoid module name collisions
 
 [tool.ty.analysis]
 # Optional dependencies not present in the venv

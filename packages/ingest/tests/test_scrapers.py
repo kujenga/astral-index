@@ -18,15 +18,6 @@ from astral_ingest.scrapers.rss import RSSFeedScraper
 from astral_ingest.scrapers.snapi import SNAPIScraper
 from astral_ingest.scrapers.twitter import TwitterScraper
 
-from .conftest import (
-    ARXIV_RSS_XML,
-    BLUESKY_FEED_RESPONSE,
-    BLUESKY_RESOLVE_RESPONSE,
-    MINIMAL_RSS_XML,
-    SNAPI_RESPONSE,
-    TWITTER_RESPONSE,
-)
-
 # ---------------------------------------------------------------------------
 # RSS scraper
 # ---------------------------------------------------------------------------
@@ -44,9 +35,9 @@ class TestRSSScraper:
         }
         return RSSFeedScraper(config)
 
-    async def test_parses_entries_into_content_items(self, patch_http):
+    async def test_parses_entries_into_content_items(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=MINIMAL_RSS_XML)
+            return httpx.Response(200, text=canned.minimal_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper()
@@ -60,9 +51,9 @@ class TestRSSScraper:
         assert items[0].source_url == "https://spacenews.com/falcon9-starlink"
         assert items[0].author == "Jeff Foust"
 
-    async def test_excerpt_mode_sets_body_text_none(self, patch_http):
+    async def test_excerpt_mode_sets_body_text_none(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=MINIMAL_RSS_XML)
+            return httpx.Response(200, text=canned.minimal_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(content_type="excerpt")
@@ -71,9 +62,9 @@ class TestRSSScraper:
         assert items[0].body_text is None
         assert items[0].excerpt is not None
 
-    async def test_full_text_mode_keeps_body(self, patch_http):
+    async def test_full_text_mode_keeps_body(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=MINIMAL_RSS_XML)
+            return httpx.Response(200, text=canned.minimal_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(content_type="full_text")
@@ -91,9 +82,9 @@ class TestRSSScraper:
 
         assert items == []
 
-    async def test_category_hints_map_to_space_category(self, patch_http):
+    async def test_category_hints_map_to_space_category(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=MINIMAL_RSS_XML)
+            return httpx.Response(200, text=canned.minimal_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(
@@ -104,9 +95,9 @@ class TestRSSScraper:
         assert SpaceCategory.LAUNCH_VEHICLES in items[0].categories
         assert SpaceCategory.COMMERCIAL_SPACE in items[0].categories
 
-    async def test_entries_without_link_skipped(self, patch_http):
+    async def test_entries_without_link_skipped(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=MINIMAL_RSS_XML)
+            return httpx.Response(200, text=canned.minimal_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper()
@@ -124,9 +115,9 @@ class TestRSSScraper:
 class TestSNAPIScraper:
     """SNAPIScraper integration tests."""
 
-    async def test_parses_json_results(self, patch_http):
+    async def test_parses_json_results(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=SNAPI_RESPONSE)
+            return httpx.Response(200, json=canned.snapi_response)
 
         patch_http(handler)
         scraper = SNAPIScraper(endpoints=["/articles/"])
@@ -139,14 +130,14 @@ class TestSNAPIScraper:
         assert items[0].content_type == ContentType.ARTICLE
         assert items[0].body_text == "NASA announced two new science missions today."
 
-    async def test_since_filter_passes_param(self, patch_http):
+    async def test_since_filter_passes_param(self, patch_http, canned):
         from datetime import UTC, datetime
 
         captured_params: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
             captured_params.append(str(request.url))
-            return httpx.Response(200, json=SNAPI_RESPONSE)
+            return httpx.Response(200, json=canned.snapi_response)
 
         patch_http(handler)
         since = datetime(2026, 2, 28, tzinfo=UTC)
@@ -185,9 +176,9 @@ class TestArxivScraper:
         }
         return ArxivScraper(feed_config, arxiv_config)
 
-    async def test_parses_entries_as_arxiv_paper(self, patch_http):
+    async def test_parses_entries_as_arxiv_paper(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=ARXIV_RSS_XML)
+            return httpx.Response(200, text=canned.arxiv_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(keyword_filter=False)
@@ -198,9 +189,9 @@ class TestArxivScraper:
         assert all(i.extraction_method == ExtractionMethod.ARXIV_RSS for i in items)
         assert items[0].source_name == "arXiv: astro-ph.EP"
 
-    async def test_arxiv_id_extracted(self, patch_http):
+    async def test_arxiv_id_extracted(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=ARXIV_RSS_XML)
+            return httpx.Response(200, text=canned.arxiv_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(keyword_filter=False)
@@ -209,9 +200,9 @@ class TestArxivScraper:
         assert items[0].arxiv_id == "2401.12345"
         assert items[1].arxiv_id == "2401.67890"
 
-    async def test_keyword_filter_includes_matching(self, patch_http):
+    async def test_keyword_filter_includes_matching(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=ARXIV_RSS_XML)
+            return httpx.Response(200, text=canned.arxiv_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(keyword_filter=True)
@@ -222,9 +213,9 @@ class TestArxivScraper:
         assert any("Exoplanet" in t for t in titles)
         assert any("Mars" in t for t in titles)
 
-    async def test_keyword_filter_excludes_nonmatching(self, patch_http):
+    async def test_keyword_filter_excludes_nonmatching(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, text=ARXIV_RSS_XML)
+            return httpx.Response(200, text=canned.arxiv_rss_xml)
 
         patch_http(handler)
         scraper = self._make_scraper(keyword_filter=True)
@@ -242,13 +233,13 @@ class TestArxivScraper:
 class TestBlueskyScraper:
     """BlueskyScraper integration tests."""
 
-    async def test_resolves_handle_and_fetches_feed(self, patch_http):
+    async def test_resolves_handle_and_fetches_feed(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
             if "resolveHandle" in url:
-                return httpx.Response(200, json=BLUESKY_RESOLVE_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_resolve_response)
             if "getAuthorFeed" in url:
-                return httpx.Response(200, json=BLUESKY_FEED_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_feed_response)
             return httpx.Response(404)
 
         patch_http(handler)
@@ -260,13 +251,13 @@ class TestBlueskyScraper:
         assert items[0].social_author_handle == "spaceuser.bsky.social"
         assert items[0].extraction_method == ExtractionMethod.BLUESKY_API
 
-    async def test_skips_reposts(self, patch_http):
+    async def test_skips_reposts(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
             if "resolveHandle" in url:
-                return httpx.Response(200, json=BLUESKY_RESOLVE_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_resolve_response)
             if "getAuthorFeed" in url:
-                return httpx.Response(200, json=BLUESKY_FEED_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_feed_response)
             return httpx.Response(404)
 
         patch_http(handler)
@@ -276,13 +267,13 @@ class TestBlueskyScraper:
         # Repost text "Shared a cool post" should not appear
         assert not any("Shared a cool post" in (i.body_text or "") for i in items)
 
-    async def test_extracts_embedded_link_as_canonical(self, patch_http):
+    async def test_extracts_embedded_link_as_canonical(self, patch_http, canned):
         def handler(request: httpx.Request) -> httpx.Response:
             url = str(request.url)
             if "resolveHandle" in url:
-                return httpx.Response(200, json=BLUESKY_RESOLVE_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_resolve_response)
             if "getAuthorFeed" in url:
-                return httpx.Response(200, json=BLUESKY_FEED_RESPONSE)
+                return httpx.Response(200, json=canned.bluesky_feed_response)
             return httpx.Response(404)
 
         patch_http(handler)
@@ -317,11 +308,11 @@ class TestTwitterScraper:
         items = await scraper.fetch()
         assert items == []
 
-    async def test_parses_tweets_with_engagement(self, patch_http, monkeypatch):
+    async def test_parses_tweets_with_engagement(self, patch_http, canned, monkeypatch):
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=TWITTER_RESPONSE)
+            return httpx.Response(200, json=canned.twitter_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})
@@ -333,11 +324,11 @@ class TestTwitterScraper:
         assert items[0].tweet_engagement == 600  # 500 likes + 100 RTs
         assert items[0].content_type == ContentType.TWEET
 
-    async def test_filters_retweets_and_replies(self, patch_http, monkeypatch):
+    async def test_filters_retweets_and_replies(self, patch_http, canned, monkeypatch):
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=TWITTER_RESPONSE)
+            return httpx.Response(200, json=canned.twitter_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})
@@ -347,11 +338,11 @@ class TestTwitterScraper:
         assert "1234567891" not in ids  # retweet
         assert "1234567892" not in ids  # reply
 
-    async def test_filters_below_min_likes(self, patch_http, monkeypatch):
+    async def test_filters_below_min_likes(self, patch_http, canned, monkeypatch):
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=TWITTER_RESPONSE)
+            return httpx.Response(200, json=canned.twitter_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})

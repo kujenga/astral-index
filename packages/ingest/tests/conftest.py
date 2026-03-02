@@ -253,6 +253,22 @@ def make_item():
 
 
 @pytest.fixture()
+def canned():
+    """Bundle all canned data constants into a namespace."""
+
+    class _Canned:
+        minimal_rss_xml = MINIMAL_RSS_XML
+        sample_html_article = SAMPLE_HTML_ARTICLE
+        snapi_response = SNAPI_RESPONSE
+        bluesky_resolve_response = BLUESKY_RESOLVE_RESPONSE
+        bluesky_feed_response = BLUESKY_FEED_RESPONSE
+        twitter_response = TWITTER_RESPONSE
+        arxiv_rss_xml = ARXIV_RSS_XML
+
+    return _Canned()
+
+
+@pytest.fixture()
 def tmp_store(tmp_path):
     """ContentStore backed by a temp directory."""
     return ContentStore(base_dir=tmp_path / "data")

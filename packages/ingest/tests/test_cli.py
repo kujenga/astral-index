@@ -14,8 +14,6 @@ from click.testing import CliRunner
 from astral_core import ContentStore
 from astral_ingest.cli import cli
 
-from .conftest import _make_item
-
 runner = CliRunner()
 
 
@@ -45,10 +43,10 @@ class TestSourcesCommand:
 
 
 class TestScrapeCommand:
-    def test_dry_run_prints_items(self, monkeypatch, tmp_path):
+    def test_dry_run_prints_items(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
         items = [
-            _make_item(
+            make_item(
                 title="Test Scrape Item",
                 source_url="https://example.com/scrape-1",
                 source_name="TestSource",
@@ -63,10 +61,7 @@ class TestScrapeCommand:
             _mock_fetch,
         )
 
-        result = runner.invoke(
-            cli,
-            ["scrape", "--source", "SpaceNews", "--dry-run"],
-        )
+        result = runner.invoke(cli, ["scrape", "--source", "SpaceNews", "--dry-run"])
         assert result.exit_code == 0
         assert "Test Scrape Item" in result.output
 
@@ -115,10 +110,10 @@ class TestExpandCommand:
         assert result.exit_code == 0
         assert "No items need expansion" in result.output
 
-    def test_dry_run_lists_candidates(self, monkeypatch, tmp_path):
+    def test_dry_run_lists_candidates(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
 
-        item = _make_item(
+        item = make_item(
             title="Needs Expansion",
             source_url="https://example.com/expand-1",
             body_text=None,
@@ -145,10 +140,10 @@ class TestClassifyCommand:
         assert result.exit_code == 0
         assert "No uncategorized items found" in result.output
 
-    def test_keyword_pass_classifies(self, monkeypatch, tmp_path):
+    def test_keyword_pass_classifies(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
 
-        item = _make_item(
+        item = make_item(
             title="SpaceX Falcon 9 rocket launch today",
             source_url="https://example.com/classify-1",
             categories=[],
@@ -157,17 +152,16 @@ class TestClassifyCommand:
         _seed_store(tmp_path, [item])
 
         result = runner.invoke(
-            cli,
-            ["classify", "--since", "7", "--no-llm", "--dry-run"],
+            cli, ["classify", "--since", "7", "--no-llm", "--dry-run"]
         )
         assert result.exit_code == 0
         assert "keywords" in result.output
         assert "launch_vehicles" in result.output
 
-    def test_dry_run_does_not_save(self, monkeypatch, tmp_path):
+    def test_dry_run_does_not_save(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
 
-        item = _make_item(
+        item = make_item(
             title="SpaceX Falcon 9 rocket launch",
             source_url="https://example.com/classify-2",
             categories=[],
@@ -175,10 +169,7 @@ class TestClassifyCommand:
         )
         _seed_store(tmp_path, [item])
 
-        runner.invoke(
-            cli,
-            ["classify", "--since", "7", "--no-llm", "--dry-run"],
-        )
+        runner.invoke(cli, ["classify", "--since", "7", "--no-llm", "--dry-run"])
 
         # Reload from store — categories should still be empty
         store = ContentStore(base_dir=tmp_path / "data")
@@ -192,38 +183,32 @@ class TestClassifyCommand:
 
 
 class TestExportCommand:
-    def test_markdown_output(self, monkeypatch, tmp_path):
+    def test_markdown_output(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
 
-        item = _make_item(
+        item = make_item(
             title="Export Test Article",
             source_url="https://example.com/export-1",
             published_at=datetime.now(UTC) - timedelta(hours=1),
         )
         _seed_store(tmp_path, [item])
 
-        result = runner.invoke(
-            cli,
-            ["export", "--since", "7", "--format", "markdown"],
-        )
+        result = runner.invoke(cli, ["export", "--since", "7", "--format", "markdown"])
         assert result.exit_code == 0
         assert "# Space News Digest" in result.output
         assert "Export Test Article" in result.output
 
-    def test_json_output_is_valid(self, monkeypatch, tmp_path):
+    def test_json_output_is_valid(self, monkeypatch, tmp_path, make_item):
         monkeypatch.chdir(tmp_path)
 
-        item = _make_item(
+        item = make_item(
             title="JSON Export Item",
             source_url="https://example.com/export-2",
             published_at=datetime.now(UTC) - timedelta(hours=1),
         )
         _seed_store(tmp_path, [item])
 
-        result = runner.invoke(
-            cli,
-            ["export", "--since", "7", "--format", "json"],
-        )
+        result = runner.invoke(cli, ["export", "--since", "7", "--format", "json"])
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
