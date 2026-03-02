@@ -19,7 +19,7 @@ packages/
 ├── core/       # astral-core    — shared models and storage (ContentItem, ContentStore)
 ├── ingest/     # astral-ingest  — RSS/API scrapers and CLI
 ├── author/     # astral-author  — turning scraped data into newsletters
-├── serve/      # astral-serve   — content serving (the app)
+├── serve/      # astral-serve   — newsletter delivery via Buttondown
 └── eval/       # astral-eval    — evaluation and quality iteration
 ```
 
@@ -39,6 +39,8 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
 - **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
+- **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
+- **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
 
 ## Public repository
 
@@ -98,8 +100,23 @@ uv run --package astral-author astral-author strategies
 uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
 uv run --package astral-author astral-author draft --since 7 --dry-run
 
+# Write draft to file (writes both .md and .json sidecar)
+uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
+
 # Compare strategies side-by-side
 uv run --package astral-author astral-author compare baseline headlines-only --since 7
+
+# Create a Buttondown draft from a NewsletterDraft JSON file
+uv run --package astral-serve astral-serve draft data/drafts/draft.json --dry-run
+uv run --package astral-serve astral-serve draft data/drafts/draft.json
+
+# Send a previously drafted newsletter
+uv run --package astral-serve astral-serve send 2026-03-01 --dry-run
+uv run --package astral-serve astral-serve send 2026-03-01
+
+# View publishing status
+uv run --package astral-serve astral-serve status
+uv run --package astral-serve astral-serve status 2026-03-01
 ```
 
 ### Testing
@@ -139,6 +156,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Reddit**: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT`.
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
+- **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Design references
