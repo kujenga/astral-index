@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import click
@@ -13,6 +13,45 @@ from dotenv import load_dotenv
 from astral_core import ContentStore
 
 from .pipeline import STRATEGIES, build_strategy
+
+
+def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
+    """Click callback: accept integer days-back or YYYY-MM-DD date string."""
+    try:
+        days = int(value)
+        return datetime.now(UTC) - timedelta(days=days)
+    except ValueError:
+        pass
+    try:
+        return datetime.combine(
+            date.fromisoformat(value), datetime.min.time(), tzinfo=UTC
+        )
+    except ValueError:
+        raise click.BadParameter(
+            f"expected integer or YYYY-MM-DD, got {value!r}"
+        ) from None
+
+
+def _parse_before(
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> datetime | None:
+    """Click callback: accept YYYY-MM-DD date string or None."""
+    if value is None:
+        return None
+    try:
+        return datetime.combine(
+            date.fromisoformat(value), datetime.min.time(), tzinfo=UTC
+        )
+    except ValueError:
+        raise click.BadParameter(f"expected YYYY-MM-DD, got {value!r}") from None
+
+
+def _describe_range(since: datetime, before: datetime | None) -> str:
+    """Human-readable description of the date window."""
+    s = since.strftime("%Y-%m-%d")
+    if before:
+        return f"{s} to {before.strftime('%Y-%m-%d')}"
+    return f"since {s}"
 
 
 @click.group()
@@ -24,10 +63,17 @@ def cli() -> None:
 @cli.command()
 @click.option(
     "--since",
-    "since_days",
-    default=7,
-    type=int,
-    help="Days to look back for items.",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=str,
+    callback=_parse_before,
+    help="Exclusive upper-bound date (YYYY-MM-DD).",
 )
 @click.option(
     "--strategy",
@@ -51,32 +97,33 @@ def cli() -> None:
     help="Write markdown to file instead of stdout.",
 )
 def draft(
-    since_days: int,
+    since: datetime,
+    before: datetime | None,
     strategy_name: str,
     max_items: int,
     dry_run: bool,
     output_path: str | None,
 ) -> None:
     """Generate a newsletter draft from stored items."""
-    asyncio.run(_draft(since_days, strategy_name, max_items, dry_run, output_path))
+    asyncio.run(_draft(since, before, strategy_name, max_items, dry_run, output_path))
 
 
 async def _draft(
-    since_days: int,
+    since: datetime,
+    before: datetime | None,
     strategy_name: str,
     max_items: int,
     dry_run: bool,
     output_path: str | None,
 ) -> None:
     store = ContentStore()
-    since = datetime.now(UTC) - timedelta(days=since_days)
-    items = store.list_items(since=since)
+    items = store.list_items(since=since, before=before)
 
     if not items:
         click.echo("No items found.")
         return
 
-    click.echo(f"Found {len(items)} items from the last {since_days} days")
+    click.echo(f"Found {len(items)} items ({_describe_range(since, before)})")
 
     pipeline = build_strategy(strategy_name)
 
@@ -123,10 +170,17 @@ def strategies() -> None:
 @click.argument("strategy_names", nargs=-1, required=True)
 @click.option(
     "--since",
-    "since_days",
-    default=7,
-    type=int,
-    help="Days to look back for items.",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=str,
+    callback=_parse_before,
+    help="Exclusive upper-bound date (YYYY-MM-DD).",
 )
 @click.option(
     "--max-items",
@@ -142,7 +196,8 @@ def strategies() -> None:
 )
 def compare(
     strategy_names: tuple[str, ...],
-    since_days: int,
+    since: datetime,
+    before: datetime | None,
     max_items: int,
     output_dir: str,
 ) -> None:
@@ -153,24 +208,24 @@ def compare(
             raise click.BadParameter(
                 f"Unknown strategy: {name}. Available: {', '.join(STRATEGIES.keys())}"
             )
-    asyncio.run(_compare(strategy_names, since_days, max_items, output_dir))
+    asyncio.run(_compare(strategy_names, since, before, max_items, output_dir))
 
 
 async def _compare(
     strategy_names: tuple[str, ...],
-    since_days: int,
+    since: datetime,
+    before: datetime | None,
     max_items: int,
     output_dir: str,
 ) -> None:
     store = ContentStore()
-    since = datetime.now(UTC) - timedelta(days=since_days)
-    items = store.list_items(since=since)
+    items = store.list_items(since=since, before=before)
 
     if not items:
         click.echo("No items found.")
         return
 
-    click.echo(f"Found {len(items)} items from the last {since_days} days")
+    click.echo(f"Found {len(items)} items ({_describe_range(since, before)})")
 
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -193,7 +248,7 @@ async def _compare(
     meta = {
         "date": today,
         "input_items": len(items),
-        "since_days": since_days,
+        "date_range": _describe_range(since, before),
         "max_items": max_items,
         "strategies": [
             {

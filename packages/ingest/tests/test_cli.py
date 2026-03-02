@@ -220,3 +220,50 @@ class TestExportCommand:
         result = runner.invoke(cli, ["export", "--since", "7"])
         assert result.exit_code == 0
         assert "No items found" in result.output
+
+    def test_since_accepts_date_string(self, monkeypatch, tmp_path, make_item):
+        monkeypatch.chdir(tmp_path)
+
+        item = make_item(
+            title="Date String Test",
+            source_url="https://example.com/date-since",
+            published_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        _seed_store(tmp_path, [item])
+
+        result = runner.invoke(
+            cli, ["export", "--since", "2020-01-01", "--format", "json"]
+        )
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data) == 1
+
+    def test_before_filters_upper_bound(self, monkeypatch, tmp_path, make_item):
+        monkeypatch.chdir(tmp_path)
+
+        item = make_item(
+            title="Before Filter Test",
+            source_url="https://example.com/before-test",
+            published_at=datetime.now(UTC) - timedelta(hours=1),
+        )
+        _seed_store(tmp_path, [item])
+
+        # --before set to yesterday excludes today's item
+        yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        result = runner.invoke(
+            cli, ["export", "--since", "30", "--before", yesterday, "--format", "json"]
+        )
+        assert result.exit_code == 0
+        assert "No items found" in result.output
+
+    def test_invalid_since_value(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(cli, ["export", "--since", "not-a-date"])
+        assert result.exit_code != 0
+        assert "expected integer or YYYY-MM-DD" in result.output
+
+    def test_invalid_before_value(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(cli, ["export", "--since", "7", "--before", "bad"])
+        assert result.exit_code != 0
+        assert "expected YYYY-MM-DD" in result.output

@@ -303,3 +303,59 @@ def test_cli_draft_no_items(tmp_path, monkeypatch) -> None:
     )
     assert result.exit_code == 0
     assert "No items found" in result.output
+
+
+def test_cli_draft_accepts_date_string_since(tmp_path, monkeypatch) -> None:
+    """Draft --since accepts a YYYY-MM-DD date string."""
+    from click.testing import CliRunner
+
+    from astral_author.cli import cli
+
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["draft", "--since", "2026-01-01", "--strategy", "headlines-only"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    assert "No items found" in result.output
+
+
+def test_cli_draft_before_filters(tmp_path, monkeypatch, make_item) -> None:
+    """Draft --before excludes items outside the window."""
+    from datetime import UTC, datetime, timedelta
+
+    from click.testing import CliRunner
+
+    from astral_author.cli import cli
+    from astral_core import ContentStore
+
+    monkeypatch.chdir(tmp_path)
+
+    item = make_item(
+        title="Recent Item",
+        source_url="https://example.com/recent",
+        published_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+    store = ContentStore(base_dir=tmp_path / "data")
+    store.save(item)
+
+    # --before yesterday should exclude today's item
+    yesterday = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "draft",
+            "--since",
+            "30",
+            "--before",
+            yesterday,
+            "--strategy",
+            "headlines-only",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    assert "No items found" in result.output

@@ -48,6 +48,7 @@ class ContentStore:
         self,
         *,
         since: datetime | None = None,
+        before: datetime | None = None,
         source_name: str | None = None,
     ) -> list[ContentItem]:
         items_dir = self.base_dir / "items"
@@ -61,6 +62,8 @@ class ContentStore:
             for path in date_dir.glob("*.json"):
                 item = ContentItem.model_validate(json.loads(path.read_text()))
                 if since and item.scraped_at < since:
+                    continue
+                if before and item.scraped_at >= before:
                     continue
                 if source_name and item.source_name != source_name:
                     continue

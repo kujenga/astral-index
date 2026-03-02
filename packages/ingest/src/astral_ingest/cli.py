@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from importlib.resources import files
 from typing import Any
 
@@ -97,6 +97,45 @@ def _build_twitter_scraper(sources: dict[str, Any]) -> TwitterScraper | None:
     if not twitter_cfg:
         return None
     return TwitterScraper(twitter_cfg)
+
+
+def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
+    """Click callback: accept integer days-back or YYYY-MM-DD date string."""
+    try:
+        days = int(value)
+        return datetime.now(UTC) - timedelta(days=days)
+    except ValueError:
+        pass
+    try:
+        return datetime.combine(
+            date.fromisoformat(value), datetime.min.time(), tzinfo=UTC
+        )
+    except ValueError:
+        raise click.BadParameter(
+            f"expected integer or YYYY-MM-DD, got {value!r}"
+        ) from None
+
+
+def _parse_before(
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> datetime | None:
+    """Click callback: accept YYYY-MM-DD date string or None."""
+    if value is None:
+        return None
+    try:
+        return datetime.combine(
+            date.fromisoformat(value), datetime.min.time(), tzinfo=UTC
+        )
+    except ValueError:
+        raise click.BadParameter(f"expected YYYY-MM-DD, got {value!r}") from None
+
+
+def _describe_range(since: datetime, before: datetime | None) -> str:
+    """Human-readable description of the date window."""
+    s = since.strftime("%Y-%m-%d")
+    if before:
+        return f"{s} to {before.strftime('%Y-%m-%d')}"
+    return f"since {s}"
 
 
 @click.group()
@@ -262,23 +301,41 @@ async def _scrape(source_name: str | None, dry_run: bool) -> None:
 
 
 @cli.command()
-@click.option("--since", "since_days", default=7, type=int, help="Days to look back.")
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=str,
+    callback=_parse_before,
+    help="Exclusive upper-bound date (YYYY-MM-DD).",
+)
 @click.option("--js", is_flag=True, help="Enable Playwright JS rendering fallback.")
 @click.option("--concurrency", default=5, type=int, help="Max concurrent requests.")
 @click.option("--dry-run", is_flag=True, help="Print candidates without expanding.")
-def expand(since_days: int, js: bool, concurrency: int, dry_run: bool) -> None:
+def expand(
+    since: datetime, before: datetime | None, js: bool, concurrency: int, dry_run: bool
+) -> None:
     """Expand excerpt-only items by fetching full article text."""
-    asyncio.run(_expand(since_days, js, concurrency, dry_run))
+    asyncio.run(_expand(since, before, js, concurrency, dry_run))
 
 
 async def _expand(
-    since_days: int, use_js: bool, concurrency: int, dry_run: bool
+    since: datetime,
+    before: datetime | None,
+    use_js: bool,
+    concurrency: int,
+    dry_run: bool,
 ) -> None:
     from .expand import expand_items
 
     store = ContentStore()
-    since = datetime.now(UTC) - timedelta(days=since_days)
-    all_items = store.list_items(since=since)
+    all_items = store.list_items(since=since, before=before)
 
     # Find items that need expansion: no body_text and never expanded
     candidates = [
@@ -316,21 +373,37 @@ async def _expand(
 
 
 @cli.command()
-@click.option("--since", "since_days", default=7, type=int, help="Days to look back.")
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=str,
+    callback=_parse_before,
+    help="Exclusive upper-bound date (YYYY-MM-DD).",
+)
 @click.option("--llm/--no-llm", default=True, help="Enable LLM fallback.")
 @click.option("--dry-run", is_flag=True, help="Print results without saving.")
-def classify(since_days: int, llm: bool, dry_run: bool) -> None:
+def classify(
+    since: datetime, before: datetime | None, llm: bool, dry_run: bool
+) -> None:
     """Classify uncategorized items using keywords + optional LLM."""
-    asyncio.run(_classify(since_days, llm, dry_run))
+    asyncio.run(_classify(since, before, llm, dry_run))
 
 
-async def _classify(since_days: int, use_llm: bool, dry_run: bool) -> None:
+async def _classify(
+    since: datetime, before: datetime | None, use_llm: bool, dry_run: bool
+) -> None:
     from .classify.keywords import classify_by_keywords
     from .classify.llm import classify_batch_with_llm
 
     store = ContentStore()
-    since = datetime.now(UTC) - timedelta(days=since_days)
-    all_items = store.list_items(since=since)
+    all_items = store.list_items(since=since, before=before)
 
     # Find items with no categories
     uncategorized = [item for item in all_items if not item.categories]
@@ -390,7 +463,20 @@ async def _classify(since_days: int, use_llm: bool, dry_run: bool) -> None:
 
 
 @cli.command()
-@click.option("--since", "since_days", default=7, type=int, help="Days to look back.")
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--before",
+    default=None,
+    type=str,
+    callback=_parse_before,
+    help="Exclusive upper-bound date (YYYY-MM-DD).",
+)
 @click.option("--source", "source_name", default=None, help="Filter by source name.")
 @click.option(
     "--format",
@@ -399,11 +485,12 @@ async def _classify(since_days: int, use_llm: bool, dry_run: bool) -> None:
     type=click.Choice(["markdown", "json"]),
     help="Output format.",
 )
-def export(since_days: int, source_name: str | None, fmt: str) -> None:
+def export(
+    since: datetime, before: datetime | None, source_name: str | None, fmt: str
+) -> None:
     """Export stored items as markdown or JSON."""
     store = ContentStore()
-    since = datetime.now(UTC) - timedelta(days=since_days)
-    items = store.list_items(since=since, source_name=source_name)
+    items = store.list_items(since=since, before=before, source_name=source_name)
 
     if not items:
         click.echo("No items found.")
@@ -416,7 +503,7 @@ def export(since_days: int, source_name: str | None, fmt: str) -> None:
             click.echo(f"  {item.model_dump_json()}{comma}")
         click.echo("]")
     else:
-        click.echo(f"# Space News Digest ({since_days}d)\n")
+        click.echo(f"# Space News Digest ({_describe_range(since, before)})\n")
         current_source = None
         for item in sorted(
             items, key=lambda i: (i.source_name, i.published_at or i.scraped_at)
