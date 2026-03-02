@@ -9,6 +9,7 @@ from .models import (
     normalize_url,
     url_hash,
 )
+from .prompts import load_prompt
 from .store import ContentStore
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "bootstrap",
     "content_hash",
     "get_llm_client",
+    "load_prompt",
     "normalize_url",
     "url_hash",
 ]

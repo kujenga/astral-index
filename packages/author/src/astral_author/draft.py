@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from astral_core import ContentItem, get_llm_client
+from astral_core import ContentItem, get_llm_client, load_prompt
 
 from .models import ItemSummary, NewsletterDraft, NewsletterSection
 
@@ -46,10 +46,11 @@ async def _generate_intro(top_titles: list[str]) -> str | None:
 
     bullets = "\n".join(f"- {t}" for t in top_titles[:3])
     try:
+        system = load_prompt("newsletter-intro", _INTRO_SYSTEM)
         resp = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
-            system=_INTRO_SYSTEM,
+            system=system,
             messages=[{"role": "user", "content": f"Top stories:\n{bullets}"}],
         )
         return resp.content[0].text.strip()

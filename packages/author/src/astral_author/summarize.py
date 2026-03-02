@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from astral_core import ContentItem, get_llm_client
+from astral_core import ContentItem, get_llm_client, load_prompt
 
 from .models import ItemSummary, NewsletterSection, SectionType
 
@@ -104,10 +104,11 @@ class LLMSummarizer:
             user_msg = f"Title: {item.title}\n\nBody:\n{_truncate(body)}"
             async with sem:
                 try:
+                    system = load_prompt("item-summarizer", _ITEM_SYSTEM)
                     resp = await client.messages.create(
                         model=self.MODEL,
                         max_tokens=200,
-                        system=_ITEM_SYSTEM,
+                        system=system,
                         messages=[{"role": "user", "content": user_msg}],
                     )
                     summary = resp.content[0].text.strip()
@@ -151,10 +152,11 @@ class LLMSummarizer:
 
         async with sem:
             try:
+                system = load_prompt("prose-generator", _PROSE_SYSTEM)
                 resp = await client.messages.create(
                     model=self.MODEL,
                     max_tokens=800,
-                    system=_PROSE_SYSTEM,
+                    system=system,
                     messages=[{"role": "user", "content": user_msg}],
                 )
                 return resp.content[0].text.strip()

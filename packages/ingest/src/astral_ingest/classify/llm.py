@@ -6,7 +6,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-from astral_core import SpaceCategory, get_llm_client
+from astral_core import SpaceCategory, get_llm_client, load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +110,11 @@ async def classify_with_llm(
     ]
 
     try:
+        system = load_prompt("category-classifier", _SYSTEM_PROMPT)
         resp = await client.messages.create(
             model=MODEL,
             max_tokens=50,
-            system=_SYSTEM_PROMPT,
+            system=system,
             messages=messages,
         )
         raw = resp.content[0].text.strip().lower()

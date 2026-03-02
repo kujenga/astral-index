@@ -416,3 +416,24 @@ def upload_dataset(
     click.echo(f"  Items: {result['item_count']}")
     click.echo(f"  Date range: {result['date_range']}")
     click.echo(f"  Categories: {result['categories']}")
+
+
+# ---------------------------------------------------------------------------
+# seed-prompts command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("seed-prompts")
+@click.option("--dry-run", is_flag=True, help="Show prompts without pushing.")
+def seed_prompts_cmd(dry_run: bool) -> None:
+    """Push hardcoded prompts to Braintrust as initial versions."""
+    from .seed_prompts import seed_prompts
+
+    seeded = seed_prompts(dry_run=dry_run)
+
+    if dry_run:
+        click.echo("Dry run — would seed:")
+    else:
+        click.echo("Seeded prompts:")
+    for slug in seeded:
+        click.echo(f"  {slug}")
