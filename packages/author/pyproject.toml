@@ -1,16 +1,24 @@
 [project]
 name = "astral-author"
 version = "0.1.0"
-description = "Add your description here"
+description = "Newsletter authoring pipeline for Astral Index"
 authors = [
     { name = "Aaron Taylor", email = "git@ataylor.io" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "astral-core",
+    "anthropic>=0.40",
+    "click>=8.1",
+    "python-dotenv>=1.0",
+]
 
 [project.scripts]
-astral-author = "astral_author:main"
+astral-author = "astral_author.cli:cli"
 
 [build-system]
 requires = ["uv_build>=0.10.7,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+astral-core = { workspace = true }
