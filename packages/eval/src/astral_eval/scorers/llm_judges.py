@@ -36,8 +36,9 @@ def _get_anthropic_client():
     # Wrap with Braintrust for automatic trace logging when available
     if os.environ.get("BRAINTRUST_API_KEY"):
         try:
-            from braintrust import wrap_anthropic
+            from braintrust import init_logger, wrap_anthropic
 
+            init_logger(project="astral-eval")
             client = wrap_anthropic(client)
         except ImportError:
             pass
