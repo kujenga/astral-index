@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import click
 from dotenv import load_dotenv
 
-from astral_core import ContentStore
+from astral_core import ContentItem, ContentStore
 
 from .pipeline import STRATEGIES, build_strategy
 
@@ -143,7 +144,44 @@ async def _draft(
             )
         return
 
-    newsletter = await pipeline.run(items, max_items=max_items)
+    start = time.monotonic()
+    items_by_id: dict[str, ContentItem] = {item.id: item for item in items}
+
+    click.echo(f"Strategy: {strategy_name}\n")
+
+    # 1. Rank
+    click.echo("Ranking items... ", nl=False)
+    scored = await pipeline.ranker.rank(items, max_items=max_items)
+    click.echo(f"{len(scored)} selected")
+
+    # 2. Cluster
+    click.echo("Clustering... ", nl=False)
+    sections = await pipeline.clusterer.cluster(scored)
+    click.echo(f"{len(sections)} sections")
+
+    # 3. Summarize
+    total_items = sum(len(s.source_items) for s in sections)
+    summarized = []
+    with click.progressbar(
+        length=total_items, label="Summarizing", show_pos=True
+    ) as bar:
+        for section in sections:
+            result = await pipeline.summarizer.summarize(section, items_by_id)
+            bar.update(len(section.source_items))
+            summarized.append(result)
+
+    # 4. Draft
+    click.echo("Drafting... ", nl=False)
+    newsletter = await pipeline.drafter.draft(summarized, items_by_id)
+    click.echo("done")
+
+    elapsed = time.monotonic() - start
+    newsletter = newsletter.model_copy(
+        update={
+            "strategy_name": pipeline.name,
+            "generation_seconds": round(elapsed, 2),
+        }
+    )
 
     if output_path:
         md_path = Path(output_path)
