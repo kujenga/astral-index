@@ -208,5 +208,6 @@ Completed phases and planned work:
 ### Planned
 
 - **Phase 6 (remaining)** — Classification accuracy metrics, dedup effectiveness measurement, source health monitoring, Braintrust experiment tracking for A/B strategy comparison.
+- **Golden-set evaluation against The Orbital Index** — Scrape and store source material for time periods matching actual Orbital Index issues (350 issues, 2019–2026). Generate a newsletter for the same week using `--since`/`--before` to restrict inputs to that window, then evaluate the output against the real issue. This enables reference-based scoring: did we pick the same top stories? How does our summary compare to a human-written one? An LLM judge can compare the two newsletters side-by-side on coverage overlap, editorial quality gap, and information density. Building a corpus of 10–20 golden weeks would give a stable benchmark for measuring strategy improvements — each pipeline change can be scored against the same reference set rather than relying solely on absolute quality rubrics.
 - **Delivery expansion** — RSS feed generation, static web archive, broader distribution channels.
 - **Ongoing** — Source list expansion (Discord servers, government documents, FAA filings, more agency feeds), editorial voice tuning, anti-hallucination safeguards, fact-checking layers.
