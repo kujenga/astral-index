@@ -1,21 +1,67 @@
 """LLM-based newsletter quality scorers using A-D rubrics.
 
-Primary path: Anthropic SDK (Claude Haiku) with optional Braintrust tracing
-via ``astral_core.get_llm_client()``. All judges return ``None`` when no API
-key is available, letting the runner skip them gracefully.
+Primary path: Braintrust AI Proxy (GPT-4o-mini via OpenAI SDK) for cross-model
+judging — avoids self-preference bias since Claude generates the drafts.
+Fallback: Anthropic SDK (Claude Haiku) via ``astral_core.get_llm_client()``.
+All judges return ``None`` when no API key is available, letting the runner
+skip them gracefully.
 """
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from typing import Any
 
 from astral_core import get_llm_client
 from astral_eval.scores import CHOICE_SCORES, Score
 
-# Claude Haiku -- cheap, fast, different model family than generation (Sonnet)
-# to avoid self-preference bias
+logger = logging.getLogger(__name__)
+
+# Fallback model when using direct Anthropic SDK
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+
+# Cross-model judge via Braintrust AI Proxy — different model family than
+# the Sonnet drafter to avoid self-preference bias
+_PROXY_MODEL = "gpt-4o-mini"
+
+
+async def _judge_with_proxy(
+    name: str,
+    system: str,
+    user_content: str,
+) -> Score | None:
+    """Judge via Braintrust AI Proxy using OpenAI SDK."""
+    try:
+        from openai import AsyncOpenAI
+    except ImportError:
+        return None
+
+    api_key = os.environ.get("BRAINTRUST_API_KEY")
+    if not api_key:
+        return None
+
+    client = AsyncOpenAI(
+        base_url="https://api.braintrust.dev/v1/proxy",
+        api_key=api_key,
+    )
+
+    try:
+        response = await client.chat.completions.create(
+            model=_PROXY_MODEL,
+            max_tokens=128,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_content},
+            ],
+        )
+    except Exception:
+        logger.warning("Braintrust proxy judge failed for %s", name, exc_info=True)
+        return None
+
+    text = response.choices[0].message.content or "" if response.choices else ""
+    return _extract_score(name, text)
 
 
 async def _judge_with_anthropic(
@@ -37,9 +83,15 @@ async def _judge_with_anthropic(
             messages=[{"role": "user", "content": user_content}],
         )
     except Exception:
+        logger.warning("Anthropic judge failed for %s", name, exc_info=True)
         return None
 
     text = response.content[0].text if response.content else ""
+    return _extract_score(name, text)
+
+
+def _extract_score(name: str, text: str) -> Score:
+    """Parse A/B/C/D choice from judge response text."""
     match = re.search(r"\b([ABCD])\b", text)
     if not match:
         return Score(
@@ -54,6 +106,20 @@ async def _judge_with_anthropic(
         score=CHOICE_SCORES[choice],
         metadata={"choice": choice, "raw": text[:200]},
     )
+
+
+async def _judge(
+    name: str,
+    system: str,
+    user_content: str,
+) -> Score | None:
+    """Route to Braintrust AI Proxy if available, else fall back to Anthropic."""
+    if os.environ.get("BRAINTRUST_API_KEY"):
+        result = await _judge_with_proxy(name, system, user_content)
+        if result is not None:
+            return result
+
+    return await _judge_with_anthropic(name, system, user_content)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +207,7 @@ async def editorial_quality(
 ) -> Score | None:
     """Judge editorial voice, sentence variety, and filler."""
     markdown = output.get("markdown", "")
-    return await _judge_with_anthropic(
+    return await _judge(
         "editorial_quality",
         _EDITORIAL_QUALITY_SYSTEM,
         f"Newsletter:\n\n{markdown}",
@@ -171,7 +237,7 @@ async def coverage_adequacy(
     if input_summary:
         user += f"\n\n---\nTop input articles this week:\n{input_summary}"
 
-    return await _judge_with_anthropic(
+    return await _judge(
         "coverage_adequacy",
         _COVERAGE_ADEQUACY_SYSTEM,
         user,
@@ -186,7 +252,7 @@ async def readability_fit(
 ) -> Score | None:
     """Judge readability for a space-professional audience."""
     markdown = output.get("markdown", "")
-    return await _judge_with_anthropic(
+    return await _judge(
         "readability_fit",
         _READABILITY_FIT_SYSTEM,
         f"Newsletter:\n\n{markdown}",
@@ -201,7 +267,7 @@ async def link_quality(
 ) -> Score | None:
     """Judge link sourcing, anchor text, and primary-source preference."""
     markdown = output.get("markdown", "")
-    return await _judge_with_anthropic(
+    return await _judge(
         "link_quality",
         _LINK_QUALITY_SYSTEM,
         f"Newsletter:\n\n{markdown}",
@@ -216,7 +282,7 @@ async def coherence_flow(
 ) -> Score | None:
     """Judge section ordering, narrative arc, and transitions."""
     markdown = output.get("markdown", "")
-    return await _judge_with_anthropic(
+    return await _judge(
         "coherence_flow",
         _COHERENCE_FLOW_SYSTEM,
         f"Newsletter:\n\n{markdown}",

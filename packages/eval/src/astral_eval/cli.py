@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from astral_author.pipeline import STRATEGIES, build_strategy
 from astral_core import ContentStore, bootstrap
 
 from .runner import run_quality_eval
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
@@ -166,3 +169,202 @@ def _format_metadata(meta: dict) -> str:
         else:
             parts.append(f"{k}={v}")
     return ", ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# experiment command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--strategy",
+    "strategy_name",
+    default="headlines-only",
+    type=click.Choice(list(STRATEGIES.keys())),
+    help="Pipeline strategy for draft generation.",
+)
+@click.option(
+    "--experiment-name",
+    default=None,
+    type=str,
+    help="Braintrust experiment name (default: {strategy}-{date}).",
+)
+@click.option(
+    "--dataset",
+    "dataset_name",
+    default=None,
+    type=str,
+    help="Braintrust dataset name to use as input.",
+)
+@click.option(
+    "--max-items",
+    default=50,
+    type=int,
+    help="Maximum items to include.",
+)
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    help="Skip LLM judge scorers (heuristic only).",
+)
+def experiment(
+    since: datetime,
+    strategy_name: str,
+    experiment_name: str | None,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+) -> None:
+    """Run a Braintrust-tracked eval experiment."""
+    asyncio.run(
+        _experiment(
+            since,
+            strategy_name,
+            experiment_name,
+            dataset_name,
+            max_items,
+            no_llm,
+        )
+    )
+
+
+async def _experiment(
+    since: datetime,
+    strategy_name: str,
+    experiment_name: str | None,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+) -> None:
+    from .experiment import run_experiment
+
+    # Load local items (needed even with dataset, for item count display)
+    items: list = []
+    if not dataset_name:
+        store = ContentStore()
+        items = store.list_items(since=since)
+        if not items:
+            click.echo("No items found.")
+            return
+        click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
+
+    result = await run_experiment(
+        strategy_name,
+        items,
+        experiment_name=experiment_name,
+        max_items=max_items,
+        use_llm=not no_llm,
+        dataset_name=dataset_name,
+    )
+
+    if result.get("tracked"):
+        click.echo(f"Experiment '{result['experiment_name']}' logged to Braintrust")
+    else:
+        click.echo(f"Experiment '{result['experiment_name']}' (local only)")
+        scores = result.get("scores", {})
+        if scores:
+            click.echo(f"\n{'Scorer':<25} {'Score':>6}  {'Details'}")
+            click.echo("-" * 65)
+            for name, score in sorted(scores.items()):
+                details = _format_metadata(score.metadata)
+                click.echo(f"{name:<25} {score.score:>6.3f}  {details}")
+            avg = sum(s.score for s in scores.values()) / len(scores)
+            click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+
+
+# ---------------------------------------------------------------------------
+# compare command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--dataset",
+    "dataset_name",
+    default=None,
+    type=str,
+    help="Braintrust dataset name to use as input.",
+)
+@click.option(
+    "--max-items",
+    default=50,
+    type=int,
+    help="Maximum items to include.",
+)
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    help="Skip LLM judge scorers (heuristic only).",
+)
+@click.argument("strategies", nargs=-1, required=True)
+def compare(
+    since: datetime,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+    strategies: tuple[str, ...],
+) -> None:
+    """Run multiple strategies as separate experiments for comparison.
+
+    Pass strategy names as arguments, e.g.: astral-eval compare baseline headlines-only
+    """
+    asyncio.run(_compare(since, dataset_name, max_items, no_llm, strategies))
+
+
+async def _compare(
+    since: datetime,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+    strategies: tuple[str, ...],
+) -> None:
+    from .experiment import run_experiment
+
+    store = ContentStore()
+    items = store.list_items(since=since) if not dataset_name else []
+
+    if not dataset_name and not items:
+        click.echo("No items found.")
+        return
+
+    if not dataset_name:
+        click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
+
+    for strategy_name in strategies:
+        if strategy_name not in STRATEGIES:
+            click.echo(f"Unknown strategy: {strategy_name}", err=True)
+            continue
+
+        click.echo(f"\n--- {strategy_name} ---")
+        result = await run_experiment(
+            strategy_name,
+            items,
+            max_items=max_items,
+            use_llm=not no_llm,
+            dataset_name=dataset_name,
+        )
+
+        if result.get("tracked"):
+            click.echo(f"Logged to Braintrust as '{result['experiment_name']}'")
+        else:
+            scores = result.get("scores", {})
+            if scores:
+                for name, score in sorted(scores.items()):
+                    click.echo(f"  {name:<23} {score.score:.3f}")
+                avg = sum(s.score for s in scores.values()) / len(scores)
+                click.echo(f"  {'Average':<23} {avg:.3f}")

@@ -51,4 +51,4 @@ testpaths = ["packages/*/tests"]
 
 [tool.ty.analysis]
 # Optional dependencies not present in the venv
-allowed-unresolved-imports = ["playwright", "playwright.**", "pdfplumber", "anthropic", "braintrust"]
+allowed-unresolved-imports = ["playwright", "playwright.**", "pdfplumber", "anthropic", "braintrust", "openai"]

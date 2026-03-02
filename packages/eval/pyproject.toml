@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-braintrust = ["braintrust>=0.0.160"]
+braintrust = ["braintrust>=0.0.160", "openai>=1.0"]
 
 [project.scripts]
 astral-eval = "astral_eval.cli:cli"
