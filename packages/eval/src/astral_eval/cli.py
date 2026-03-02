@@ -368,3 +368,51 @@ async def _compare(
                     click.echo(f"  {name:<23} {score.score:.3f}")
                 avg = sum(s.score for s in scores.values()) / len(scores)
                 click.echo(f"  {'Average':<23} {avg:.3f}")
+
+
+# ---------------------------------------------------------------------------
+# upload-dataset command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("upload-dataset")
+@click.option(
+    "--since",
+    required=True,
+    type=str,
+    callback=_parse_since,
+    help="Start date (YYYY-MM-DD) or days back (integer).",
+)
+@click.option(
+    "--until",
+    default=None,
+    type=str,
+    callback=_parse_since,
+    is_eager=False,
+    help="End date (YYYY-MM-DD) or days back (integer).",
+)
+@click.option(
+    "--name",
+    "dataset_name",
+    required=True,
+    type=str,
+    help="Braintrust dataset name.",
+)
+def upload_dataset(
+    since: datetime,
+    until: datetime | None,
+    dataset_name: str,
+) -> None:
+    """Upload a golden-week dataset to Braintrust for reproducible evals."""
+    from .datasets import upload_golden_week
+
+    result = upload_golden_week(
+        since=since,
+        until=until,
+        dataset_name=dataset_name,
+    )
+
+    click.echo(f"Uploaded dataset '{result['dataset_name']}'")
+    click.echo(f"  Items: {result['item_count']}")
+    click.echo(f"  Date range: {result['date_range']}")
+    click.echo(f"  Categories: {result['categories']}")
