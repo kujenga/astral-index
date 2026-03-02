@@ -1,0 +1,54 @@
+name: Eval
+
+on:
+  pull_request:
+    paths:
+      - "packages/author/**"
+      - "packages/eval/**"
+      - "packages/ingest/**/classify/**"
+      - "packages/core/src/astral_core/scoring.py"
+      - "packages/core/src/astral_core/prompts.py"
+
+jobs:
+  heuristic-eval:
+    name: Heuristic eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --all-packages --extra braintrust
+
+      - name: Run heuristic eval
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+        run: |
+          uv run --package astral-eval astral-eval experiment \
+            --dataset golden-week \
+            --strategy baseline \
+            --no-llm
+
+  full-eval:
+    name: Full eval (LLM judges)
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'eval-full')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --all-packages --extra braintrust
+
+      - name: Run full eval with LLM judges
+        env:
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          uv run --package astral-eval astral-eval experiment \
+            --dataset golden-week \
+            --strategy baseline
