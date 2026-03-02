@@ -4,6 +4,7 @@ from .models import (
     NewsletterSection,
     SectionType,
 )
+from .pipeline import build_strategy
 from .stages import Clusterer, Drafter, Ranker, Summarizer
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "Ranker",
     "SectionType",
     "Summarizer",
+    "build_strategy",
 ]

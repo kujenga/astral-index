@@ -35,6 +35,10 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Category classifier** (`astral_ingest.classify`) — two-pass classification: keyword regex (~70% coverage, free) then Claude Haiku LLM fallback for the rest.
 - **Enhanced dedup** (`astral_ingest.dedup`) — URL normalization (strips tracking params), content hash, and title Levenshtein distance.
 - Basic dedup: scrapers check `store.exists(id)` before saving.
+- **Authoring pipeline** (`astral_author`) — four-stage pipeline (rank → cluster → summarize → draft) with swappable implementations via Protocol interfaces.
+- **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
+- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM).
+- **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 
 ## Public repository
 
@@ -86,6 +90,16 @@ uv run --package astral-ingest astral-ingest expand --since 1 --js --concurrency
 # Classify uncategorized items (keywords first, then LLM fallback)
 uv run --package astral-ingest astral-ingest classify --since 7
 uv run --package astral-ingest astral-ingest classify --since 7 --no-llm --dry-run
+
+# List available authoring strategies
+uv run --package astral-author astral-author strategies
+
+# Generate a newsletter draft (headlines-only = no LLM needed)
+uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
+uv run --package astral-author astral-author draft --since 7 --dry-run
+
+# Compare strategies side-by-side
+uv run --package astral-author astral-author compare baseline headlines-only --since 7
 ```
 
 ### Linting, Formatting, and Type Checking
@@ -113,7 +127,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 
 - **Reddit**: `REDDIT_CLIENT_ID` and `REDDIT_CLIENT_SECRET` (create an app at https://www.reddit.com/prefs/apps). Optional `REDDIT_USER_AGENT`.
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
-- **LLM classifier**: `ANTHROPIC_API_KEY` — for Claude Haiku fallback classification. Keyword pass works without it.
+- **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Design references
