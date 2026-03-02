@@ -183,12 +183,26 @@ def sources() -> None:
 
 @cli.command()
 @click.option(
-    "--source", "source_name", default=None, help="Scrape a single source by name."
+    "--source",
+    "source_name",
+    default=None,
+    help=(
+        "Scrape a single source by name. Accepts RSS source names (e.g. "
+        '"SpaceNews") or scraper names: snapi, reddit, arxiv, bluesky, twitter.'
+    ),
 )
 @click.option("--dry-run", is_flag=True, help="Print items without saving.")
 def scrape(source_name: str | None, dry_run: bool) -> None:
-    """Scrape RSS feeds, Spaceflight News API, and Reddit."""
+    """Scrape all configured sources (RSS, SNAPI, Reddit, arXiv, Bluesky, Twitter/X)."""
     asyncio.run(_scrape(source_name, dry_run))
+
+
+def _want(source_name: str | None, *labels: str) -> bool:
+    """Return True if no filter is active or the filter matches any label."""
+    if not source_name:
+        return True
+    needle = source_name.lower()
+    return any(needle == label.lower() for label in labels)
 
 
 async def _scrape(source_name: str | None, dry_run: bool) -> None:
@@ -211,91 +225,101 @@ async def _scrape(source_name: str | None, dry_run: bool) -> None:
         total_new += new
         total_skipped += skipped
 
-    # Everything below is skipped when filtering to a specific RSS source
-    if source_name:
-        click.echo(f"\nDone: {total_new} new items, {total_skipped} skipped")
-        return
-
     # SNAPI
-    click.echo("Fetching Spaceflight News API... ", nl=False)
-    try:
-        items = await _build_snapi_scraper(cfg).fetch()
-    except Exception as e:
-        click.echo(f"ERROR: {e}")
-    else:
-        new, skipped = _save_items(items, store, dry_run)
-        click.echo(f"{new} new, {skipped} skipped")
-        total_new += new
-        total_skipped += skipped
+    if _want(source_name, "snapi", "spaceflight news api"):
+        click.echo("Fetching Spaceflight News API... ", nl=False)
+        try:
+            items = await _build_snapi_scraper(cfg).fetch()
+        except Exception as e:
+            click.echo(f"ERROR: {e}")
+        else:
+            new, skipped = _save_items(items, store, dry_run)
+            click.echo(f"{new} new, {skipped} skipped")
+            total_new += new
+            total_skipped += skipped
 
     # Reddit
-    reddit = _build_reddit_scraper(cfg)
-    if reddit:
-        click.echo("Fetching Reddit... ", nl=False)
-        try:
-            items = await reddit.fetch()
-        except Exception as e:
-            click.echo(f"ERROR: {e}")
-        else:
+    if _want(source_name, "reddit"):
+        reddit = _build_reddit_scraper(cfg)
+        if reddit:
+            click.echo("Fetching Reddit... ", nl=False)
+            try:
+                items = await reddit.fetch()
+            except Exception as e:
+                click.echo(f"ERROR: {e}")
+            else:
 
-            def _reddit_label(item: ContentItem) -> str:
-                return f" [score:{item.reddit_score}]" if item.reddit_score else ""
+                def _reddit_label(item: ContentItem) -> str:
+                    return f" [score:{item.reddit_score}]" if item.reddit_score else ""
 
-            new, skipped = _save_items(items, store, dry_run, label_fn=_reddit_label)
-            click.echo(f"{new} new, {skipped} skipped")
-            total_new += new
-            total_skipped += skipped
+                new, skipped = _save_items(
+                    items, store, dry_run, label_fn=_reddit_label
+                )
+                click.echo(f"{new} new, {skipped} skipped")
+                total_new += new
+                total_skipped += skipped
 
     # arXiv
-    for scraper in _build_arxiv_scrapers(cfg):
-        click.echo(f"Fetching arXiv: {scraper.name}... ", nl=False)
-        try:
-            items = await scraper.fetch()
-        except Exception as e:
-            click.echo(f"ERROR: {e}")
-            continue
-        new, skipped = _save_items(items, store, dry_run)
-        click.echo(f"{new} new, {skipped} skipped")
-        total_new += new
-        total_skipped += skipped
+    if _want(source_name, "arxiv"):
+        for scraper in _build_arxiv_scrapers(cfg):
+            click.echo(f"Fetching arXiv: {scraper.name}... ", nl=False)
+            try:
+                items = await scraper.fetch()
+            except Exception as e:
+                click.echo(f"ERROR: {e}")
+                continue
+            new, skipped = _save_items(items, store, dry_run)
+            click.echo(f"{new} new, {skipped} skipped")
+            total_new += new
+            total_skipped += skipped
 
     # Bluesky
-    bluesky = _build_bluesky_scraper(cfg)
-    if bluesky:
-        click.echo("Fetching Bluesky... ", nl=False)
-        try:
-            items = await bluesky.fetch()
-        except Exception as e:
-            click.echo(f"ERROR: {e}")
-        else:
+    if _want(source_name, "bluesky"):
+        bluesky = _build_bluesky_scraper(cfg)
+        if bluesky:
+            click.echo("Fetching Bluesky... ", nl=False)
+            try:
+                items = await bluesky.fetch()
+            except Exception as e:
+                click.echo(f"ERROR: {e}")
+            else:
 
-            def _bluesky_label(item: ContentItem) -> str:
-                handle = item.social_author_handle
-                return f" [@{handle}]" if handle else ""
+                def _bluesky_label(item: ContentItem) -> str:
+                    handle = item.social_author_handle
+                    return f" [@{handle}]" if handle else ""
 
-            new, skipped = _save_items(items, store, dry_run, label_fn=_bluesky_label)
-            click.echo(f"{new} new, {skipped} skipped")
-            total_new += new
-            total_skipped += skipped
+                new, skipped = _save_items(
+                    items, store, dry_run, label_fn=_bluesky_label
+                )
+                click.echo(f"{new} new, {skipped} skipped")
+                total_new += new
+                total_skipped += skipped
 
     # Twitter/X
-    twitter = _build_twitter_scraper(cfg)
-    if twitter:
-        click.echo("Fetching Twitter/X... ", nl=False)
-        try:
-            items = await twitter.fetch()
-        except Exception as e:
-            click.echo(f"ERROR: {e}")
-        else:
+    if _want(source_name, "twitter", "twitter/x"):
+        twitter = _build_twitter_scraper(cfg)
+        if twitter:
+            click.echo("Fetching Twitter/X... ", nl=False)
+            try:
+                items = await twitter.fetch()
+            except Exception as e:
+                click.echo(f"ERROR: {e}")
+            else:
 
-            def _twitter_label(item: ContentItem) -> str:
-                eng = f" [eng:{item.tweet_engagement}]" if item.tweet_engagement else ""
-                return eng
+                def _twitter_label(item: ContentItem) -> str:
+                    eng = (
+                        f" [eng:{item.tweet_engagement}]"
+                        if item.tweet_engagement
+                        else ""
+                    )
+                    return eng
 
-            new, skipped = _save_items(items, store, dry_run, label_fn=_twitter_label)
-            click.echo(f"{new} new, {skipped} skipped")
-            total_new += new
-            total_skipped += skipped
+                new, skipped = _save_items(
+                    items, store, dry_run, label_fn=_twitter_label
+                )
+                click.echo(f"{new} new, {skipped} skipped")
+                total_new += new
+                total_skipped += skipped
 
     click.echo(f"\nDone: {total_new} new items, {total_skipped} skipped")
 
