@@ -358,12 +358,16 @@ async def _expand(
         click.echo(f"\n{len(candidates)} items would be expanded (dry run)")
         return
 
-    expanded = await expand_items(
-        candidates,
-        store,
-        concurrency=concurrency,
-        use_js=use_js,
-    )
+    with click.progressbar(
+        length=len(candidates), label="Expanding", show_pos=True
+    ) as bar:
+        expanded = await expand_items(
+            candidates,
+            store,
+            concurrency=concurrency,
+            use_js=use_js,
+            on_progress=lambda: bar.update(1),
+        )
 
     click.echo(f"\nExpanded {len(expanded)}/{len(candidates)} items")
     for item in expanded:

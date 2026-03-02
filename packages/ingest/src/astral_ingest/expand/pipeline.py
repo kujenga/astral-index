@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 import httpx
@@ -102,6 +103,7 @@ async def expand_items(
     concurrency: int = 5,
     use_js: bool = False,
     dry_run: bool = False,
+    on_progress: Callable[[], None] | None = None,
 ) -> list[ContentItem]:
     """Expand multiple items with bounded concurrency.
 
@@ -123,6 +125,8 @@ async def expand_items(
                 if not dry_run:
                     store.save(result)
                 expanded.append(result)
+            if on_progress:
+                on_progress()
 
     async with make_http_client() as client:
         tasks = [asyncio.create_task(_process(item, client)) for item in items]
