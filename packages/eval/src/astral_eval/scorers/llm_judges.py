@@ -15,7 +15,7 @@ from astral_eval.scores import CHOICE_SCORES, Score
 
 # Claude Haiku -- cheap, fast, different model family than generation (Sonnet)
 # to avoid self-preference bias
-_DEFAULT_MODEL = "claude-haiku-4-5-20250929"
+_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 
 def _has_api_key() -> str | None:
