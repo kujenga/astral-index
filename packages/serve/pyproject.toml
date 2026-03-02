@@ -1,16 +1,26 @@
 [project]
 name = "astral-serve"
 version = "0.1.0"
-description = "Add your description here"
+description = "Newsletter delivery via Buttondown for Astral Index"
 authors = [
     { name = "Aaron Taylor", email = "git@ataylor.io" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "astral-core",
+    "astral-author",
+    "httpx>=0.27",
+    "click>=8.1",
+    "python-dotenv>=1.0",
+]
 
 [project.scripts]
-astral-serve = "astral_serve:main"
+astral-serve = "astral_serve.cli:cli"
 
 [build-system]
 requires = ["uv_build>=0.10.7,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+astral-core = { workspace = true }
+astral-author = { workspace = true }
