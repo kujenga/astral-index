@@ -437,3 +437,67 @@ def seed_prompts_cmd(dry_run: bool) -> None:
         click.echo("Seeded prompts:")
     for slug in seeded:
         click.echo(f"  {slug}")
+
+
+# ---------------------------------------------------------------------------
+# score command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.argument("draft_file", type=click.Path(exists=True))
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD) for input items.",
+)
+def score(draft_file: str, since: datetime) -> None:
+    """Score an existing draft JSON file with heuristic scorers.
+
+    Results are printed and optionally logged to Braintrust.
+    """
+    from astral_core.scoring import HEURISTIC_SCORERS
+
+    raw = Path(draft_file).read_text()
+    draft = NewsletterDraft.model_validate_json(raw)
+    click.echo(f"Loaded draft from {draft_file}")
+
+    store = ContentStore()
+    items = store.list_items(since=since)
+    click.echo(f"Found {len(items)} input items")
+
+    output = draft.model_dump(mode="json")
+    input_data = [item.model_dump(mode="json") for item in items]
+
+    click.echo(f"\n{'Scorer':<25} {'Score':>6}  {'Details'}")
+    click.echo("-" * 65)
+
+    bt_scores: dict[str, float] = {}
+    for scorer in HEURISTIC_SCORERS:
+        result = scorer(output=output, input=input_data)
+        if result is not None:
+            details = _format_metadata(result.metadata)
+            click.echo(f"{result.name:<25} {result.score:>6.3f}  {details}")
+            bt_scores[result.name] = result.score
+
+    if bt_scores:
+        avg = sum(bt_scores.values()) / len(bt_scores)
+        click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+
+    # Log to Braintrust if available
+    try:
+        import os
+
+        import braintrust
+
+        if os.environ.get("BRAINTRUST_API_KEY"):
+            bt_logger = braintrust.init_logger(project="astral-index")
+            bt_logger.log(
+                input={"draft_file": draft_file, "since": since.isoformat()},
+                scores=bt_scores,
+            )
+            click.echo("\nScores logged to Braintrust")
+    except Exception:
+        pass
