@@ -118,7 +118,9 @@ uv run --package astral-serve astral-serve status 2026-03-01   # one issue
 
 ## Quick Reference
 
-All-in-one copy-paste for a typical weekly run:
+**Automated:** Run `scripts/weekly.sh` to execute the full pipeline in one command. Use `--dry-run` for preview mode, `--send` to include Buttondown delivery. Run `scripts/weekly.sh --help` for all options.
+
+**Manual:** Copy-paste for a typical weekly run:
 
 ```bash
 # Ingest

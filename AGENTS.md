@@ -140,6 +140,13 @@ uv run --package astral-eval astral-eval quality --since 30 --draft-file data/dr
 
 # Write evaluation results to file
 uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
+
+# Run the full weekly pipeline (scrape → expand → classify → draft → eval)
+scripts/weekly.sh
+scripts/weekly.sh --dry-run              # preview mode, minimal LLM cost
+scripts/weekly.sh --send                 # include Buttondown delivery
+scripts/weekly.sh --since 14             # two-week lookback
+scripts/weekly.sh --no-expand            # skip expansion (already expanded)
 ```
 
 ### Testing
