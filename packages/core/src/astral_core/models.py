@@ -30,6 +30,7 @@ class SpaceCategory(StrEnum):
     DEFENSE_SPACE = "defense_space"
     SATELLITE_COMMS = "satellite_comms"
     DEEP_SPACE = "deep_space"
+    OFF_TOPIC = "off_topic"
 
 
 class ExtractionMethod(StrEnum):

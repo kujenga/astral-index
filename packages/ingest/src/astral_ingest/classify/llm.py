@@ -29,11 +29,17 @@ _CATEGORY_DESCRIPTIONS = {
     SpaceCategory.DEFENSE_SPACE: ("Military space, Space Force, missile defense"),
     SpaceCategory.SATELLITE_COMMS: ("Satellite internet, Starlink, constellations"),
     SpaceCategory.DEEP_SPACE: ("Outer planets, interstellar, asteroids, comets"),
+    SpaceCategory.OFF_TOPIC: (
+        "Not about space — unrelated content, broken/empty text, social chatter"
+    ),
 }
 
 _SYSTEM_PROMPT = """You are a space news classifier. Given a title and excerpt, \
 return exactly ONE category from the list below. Return ONLY the category value \
 (e.g. "launch_vehicles"), nothing else.
+
+If the content is not about space, or the text is too broken/empty to classify, \
+return "off_topic".
 
 Categories:
 """
@@ -71,6 +77,15 @@ _FEW_SHOT = [
         ),
     },
     {"role": "assistant", "content": "lunar"},
+    {
+        "role": "user",
+        "content": (
+            "Title: Great thread on xkcd comics\n"
+            "Excerpt: Just saw the latest xkcd and it's hilarious. "
+            "Randall really outdid himself with this one."
+        ),
+    },
+    {"role": "assistant", "content": "off_topic"},
 ]
 
 

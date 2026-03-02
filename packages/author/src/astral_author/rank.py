@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 
-from astral_core import ContentItem
+from astral_core import ContentItem, SpaceCategory
 
 # Source quality tiers (0-1). Unlisted sources get DEFAULT_TIER.
 _SOURCE_TIERS: dict[str, float] = {
@@ -100,6 +100,7 @@ class EngagementRanker:
         max_items: int = 50,
     ) -> list[tuple[ContentItem, float]]:
         now = datetime.now(UTC)
-        scored = [(item, score_item(item, now)) for item in items]
+        on_topic = [i for i in items if SpaceCategory.OFF_TOPIC not in i.categories]
+        scored = [(item, score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:max_items]

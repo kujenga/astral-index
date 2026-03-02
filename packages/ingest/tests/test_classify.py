@@ -34,7 +34,7 @@ from astral_ingest.classify.llm import (
         ("Starlink satellite internet expansion", SpaceCategory.SATELLITE_COMMS),
         ("Voyager probe enters interstellar space", SpaceCategory.DEEP_SPACE),
     ],
-    ids=[c.value for c in SpaceCategory],
+    ids=[c.value for c in SpaceCategory if c != SpaceCategory.OFF_TOPIC],
 )
 async def test_keyword_classifier_all_categories(
     title: str,
