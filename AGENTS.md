@@ -175,6 +175,14 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for LLM judge calls via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
+## Keeping docs current
+
+When adding a new package, feature, or pipeline stage, update these files:
+
+- **`AGENTS.md`** (this file) — add key concepts, CLI commands, and credentials. This is the primary reference for agents working in the codebase.
+- **`ARCHITECTURE.md`** — update the package breakdown, data flow diagram, and roadmap. This is the high-level design document for humans. Mark completed phases as "Done" and remove "Not yet implemented" / `(TODO)` labels.
+- **Package `README.md`** — each package under `packages/` should have a README describing its scorers, commands, workflow, or API surface.
+
 ## Design references
 
 The [Space News Scraping Infrastructure](https://www.notion.so/31677391e16b80719cbeefbf3d39d2fd) Notion doc contains the full source-by-source feasibility analysis, content schema rationale, and multi-phase roadmap. Consult it when adding new source types or evolving the pipeline.

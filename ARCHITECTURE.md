@@ -81,32 +81,56 @@ Optional Playwright JS rendering for SPAs. PDF extraction via pdfplumber. Rate l
 
 ### `astral-author` — newsletter generation
 
-*Not yet implemented.* Will handle Layer 2 of the pipeline:
+Handles Layer 2 of the pipeline via a four-stage architecture with swappable implementations:
 
-- **Topic clustering** — group the week's ContentItems into the newsletter's editorial sections (launch vehicles, space science, commercial space, lunar, Mars, Earth observation, policy, international, ISS/stations, defense, satellite comms, deep space)
-- **Multi-stage summarization** — recursive summarization following the smol.ai pattern: chunk content, summarize each chunk, then summarize the summaries. Compress a week of content into ~1,500–2,500 words.
-- **Parallel pipeline variants** — run 2–4 pipeline instances with different prompts or model configurations, select the best output
-- **Newsletter drafting** — produce the Orbital Index's distinctive structure: 2–4 deep-dive paragraphs on top stories, a dense "News in brief" section, curated links, and a closing space image
-- **NER and fact-checking** — flag entity names, mission designations, and dates for human verification
+- **Rank** (`EngagementRanker`) — scores and selects the top items from the week's ContentItems based on recency, word count, source diversity, and engagement signals.
+- **Cluster** (`CategoryClusterer`) — groups scored items into editorial sections by SpaceCategory. Categories with enough items become deep-dive sections; the rest are collected into "In Brief".
+- **Summarize** — fills in per-item summaries. `LLMSummarizer` uses Claude Sonnet for editorial prose; `ExcerptSummarizer` uses existing excerpts (no LLM needed).
+- **Draft** (`MarkdownDrafter`) — assembles sections into a complete `NewsletterDraft` with rendered markdown, metadata, and pipeline stats.
+
+**Strategies** (`pipeline.py`) — named compositions of the four stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only. New strategies are registered in the `STRATEGIES` dict.
+
+**Models** — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links). All Pydantic models with JSON serialization for downstream consumption by eval and serve.
+
+**CLI** — `astral-author draft`, `astral-author strategies`, `astral-author compare`.
 
 ### `astral-serve` — publishing and delivery
 
-*Not yet implemented.* Will handle Layer 3:
+Handles Layer 3 via the Buttondown API with a two-step publish workflow:
 
-- **RSS feed generation** — publish the newsletter as an RSS/Atom feed
-- **Web frontend** — static site (likely Astro or similar) for the newsletter archive
-- **Email delivery** — integration with Buttondown or Resend for subscriber distribution
-- **API** — optional REST API for programmatic access to newsletter content and the underlying content store
+- **Draft** — takes a `NewsletterDraft` JSON file, converts it to Buttondown's email format, and creates a remote draft via the API. Returns a `PublishRecord` with the Buttondown email ID.
+- **Send** — promotes a previously drafted email from draft to scheduled/sent status.
+- **Status** — inspects publishing state for a given date from the local `data/newsletters/{YYYY-MM-DD}/meta.json` tracking file.
+
+**Models** — `PublishRecord` tracks issue state (draft/sent/failed), Buttondown email ID, and metadata.
+
+**CLI** — `astral-serve draft`, `astral-serve send`, `astral-serve status`.
+
+**Planned** — RSS feed generation, static web archive, broader distribution channels.
 
 ### `astral-eval` — quality measurement
 
-*Not yet implemented.* Will provide feedback loops for iterating on pipeline quality:
+Provides measurable feedback for iterating on ranker weights, summarizer prompts, and clustering strategies. Scores newsletter drafts across multiple dimensions.
 
-- **Coverage metrics** — are we catching the stories that matter? Compare against manually curated reference sets.
-- **Summary quality** — factual accuracy, information density, readability scoring
-- **Classification accuracy** — measure keyword vs LLM classifier precision/recall
-- **Dedup effectiveness** — false positive/negative rates for duplicate detection
-- **Source health** — monitor feed reliability, detect broken/stale sources
+**Heuristic scorers** (zero cost, no API key):
+- `source_diversity` — Shannon entropy over source names, scored as Effective Number of Sources / target
+- `category_coverage` — fraction of input categories represented in the output
+- `link_count` — markdown links per output item
+
+**LLM judges** (Claude Haiku, A-D rubrics):
+- `editorial_quality` — voice, sentence variety, filler detection
+- `coverage_adequacy` — whether the week's important stories are covered (uses input items as context)
+- `readability_fit` — appropriate tone for space-industry audience
+- `link_quality` — claims sourced, descriptive anchor text, primary sources preferred
+- `coherence_flow` — logical section ordering, narrative arc, transitions
+
+Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). Optional Braintrust tracing via `wrap_anthropic` when `BRAINTRUST_API_KEY` is set.
+
+**Architecture** — scorers are standalone functions returning a `Score(name, score, metadata)` dataclass. The runner orchestrates sync heuristic + async concurrent LLM execution. All judges degrade gracefully (return `None`) without API keys.
+
+**CLI** — `astral-eval quality`.
+
+**Planned** — classification accuracy metrics, dedup effectiveness measurement, source health monitoring, Braintrust experiment tracking integration.
 
 ## Data flow
 
@@ -139,13 +163,15 @@ Optional Playwright JS rendering for SPAs. PDF extraction via pdfplumber. Rate l
                dedup flags)
                          │
                          ▼
-                  astral-author (TODO)
-                  (summarize, cluster,
-                   draft newsletter)
+                  astral-author
+              (rank, cluster, summarize,
+                  draft newsletter)
                          │
-                         ▼
-                  astral-serve (TODO)
-                  (RSS, web, email)
+                    ┌────┴────┐
+                    ▼         ▼
+             astral-serve  astral-eval
+             (Buttondown   (heuristic +
+              delivery)    LLM judges)
 ```
 
 ## Source coverage
@@ -175,10 +201,12 @@ Completed phases and planned work:
 - **Phase 1** — Core schema, RSS scraping (25 feeds), SNAPI integration, JSON file storage, CLI, dedup
 - **Phase 2** — Reddit scraper, link expansion pipeline (three-stage cascade + Playwright + PDF), enhanced dedup (URL normalization, content hash, title distance)
 - **Phase 3** — arXiv scraper, Bluesky scraper, Twitter/X scraper, two-pass category classifier (keyword + LLM)
+- **Phase 4** — Authoring pipeline: four-stage architecture (rank → cluster → summarize → draft) with swappable Protocol implementations, named strategies ("baseline" with Claude Sonnet, "headlines-only" with excerpts), Pydantic newsletter models, JSON sidecar output, strategy comparison CLI
+- **Phase 5** — Delivery via Buttondown: two-step publish workflow (draft → send), PublishRecord state tracking, CLI for draft/send/status
+- **Phase 6 (partial)** — Newsletter quality scoring: 3 heuristic scorers + 5 LLM judges with A-D rubrics, async concurrent runner, CLI, optional Braintrust tracing
 
 ### Planned
 
-- **Phase 4: Authoring pipeline** — Topic clustering, multi-stage recursive summarization, parallel pipeline variants, newsletter draft generation. This is the core LLM-heavy layer that transforms a week of classified ContentItems into a readable newsletter.
-- **Phase 5: Delivery** — RSS feed generation, static web archive, email distribution via Buttondown/Resend. The "last mile" from draft to readers.
-- **Phase 6: Evaluation and iteration** — Coverage metrics, summary quality scoring, classifier accuracy measurement, source health monitoring. Feedback loops to improve pipeline quality over time.
+- **Phase 6 (remaining)** — Classification accuracy metrics, dedup effectiveness measurement, source health monitoring, Braintrust experiment tracking for A/B strategy comparison.
+- **Delivery expansion** — RSS feed generation, static web archive, broader distribution channels.
 - **Ongoing** — Source list expansion (Discord servers, government documents, FAA filings, more agency feeds), editorial voice tuning, anti-hallucination safeguards, fact-checking layers.
