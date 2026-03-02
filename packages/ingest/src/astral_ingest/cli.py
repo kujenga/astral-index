@@ -418,29 +418,39 @@ async def _classify(
     keyword_classified = 0
     still_uncategorized = []
 
-    for item in uncategorized:
-        cats = classify_by_keywords(item.title, item.body_text or item.excerpt)
-        if cats:
-            keyword_classified += 1
-            if dry_run:
-                labels = ", ".join(c.value for c in cats)
-                click.echo(f"  [keywords] {item.title[:60]}... -> {labels}")
+    with click.progressbar(
+        uncategorized, label="Pass 1 (keywords)", show_pos=True
+    ) as bar:
+        for item in bar:
+            cats = classify_by_keywords(item.title, item.body_text or item.excerpt)
+            if cats:
+                keyword_classified += 1
+                if dry_run:
+                    labels = ", ".join(c.value for c in cats)
+                    click.echo(f"  [keywords] {item.title[:60]}... -> {labels}")
+                else:
+                    item.categories = cats
+                    store.save(item)
             else:
-                item.categories = cats
-                store.save(item)
-        else:
-            still_uncategorized.append(item)
+                still_uncategorized.append(item)
 
     click.echo(f"Pass 1 (keywords): {keyword_classified} classified")
 
     # Pass 2: LLM fallback
     llm_classified = 0
     if use_llm and still_uncategorized:
-        click.echo(f"Pass 2 (LLM): classifying {len(still_uncategorized)} remaining...")
-        batch = [
-            (item.title, item.body_text or item.excerpt) for item in still_uncategorized
-        ]
-        results = await classify_batch_with_llm(batch)
+        with click.progressbar(
+            length=len(still_uncategorized),
+            label="Pass 2 (LLM)    ",
+            show_pos=True,
+        ) as bar:
+            batch = [
+                (item.title, item.body_text or item.excerpt)
+                for item in still_uncategorized
+            ]
+            results = await classify_batch_with_llm(
+                batch, on_progress=lambda: bar.update(1)
+            )
 
         for item, cat in zip(still_uncategorized, results, strict=True):
             if cat:

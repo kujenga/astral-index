@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from collections.abc import Callable
 
 from astral_core import SpaceCategory
 
@@ -123,11 +124,13 @@ async def classify_with_llm(
 
 async def classify_batch_with_llm(
     items: list[tuple[str, str | None]],
+    on_progress: Callable[[], None] | None = None,
 ) -> list[SpaceCategory | None]:
     """Classify multiple items concurrently with a semaphore.
 
     Args:
         items: list of (title, excerpt) tuples
+        on_progress: called after each item completes (for progress bars)
 
     Returns:
         list of SpaceCategory or None, in the same order as input
@@ -136,7 +139,10 @@ async def classify_batch_with_llm(
 
     async def _classify(title: str, excerpt: str | None) -> SpaceCategory | None:
         async with sem:
-            return await classify_with_llm(title, excerpt)
+            result = await classify_with_llm(title, excerpt)
+            if on_progress:
+                on_progress()
+            return result
 
     tasks = [_classify(title, excerpt) for title, excerpt in items]
     return list(await asyncio.gather(*tasks))
