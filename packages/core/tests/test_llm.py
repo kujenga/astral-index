@@ -9,6 +9,11 @@ from astral_core import get_llm_client
 
 
 class TestGetLlmClient:
+    def setup_method(self):
+        """Reset module-level state between tests."""
+        llm_mod._braintrust_initialized = False
+        llm_mod._braintrust_warned = False
+
     def test_no_api_key_returns_none(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         assert get_llm_client() is None

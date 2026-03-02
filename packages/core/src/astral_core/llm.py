@@ -13,6 +13,7 @@ import os
 logger = logging.getLogger(__name__)
 
 _braintrust_initialized = False
+_braintrust_warned = False
 
 
 def get_llm_client():
@@ -23,6 +24,7 @@ def get_llm_client():
     - Wraps the client with ``braintrust.wrap_anthropic()`` when
       ``BRAINTRUST_API_KEY`` is set and the package is installed.
     - Calls ``init_logger(project="astral-index")`` at most once per process.
+    - Logs a warning (once) when Braintrust is not activated.
     """
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None
@@ -39,6 +41,8 @@ def get_llm_client():
         logger.warning("Failed to create Anthropic client", exc_info=True)
         return None
 
+    global _braintrust_warned
+
     if os.environ.get("BRAINTRUST_API_KEY"):
         try:
             from braintrust import init_logger, wrap_anthropic
@@ -50,6 +54,18 @@ def get_llm_client():
 
             client = wrap_anthropic(client)
         except ImportError:
-            pass
+            if not _braintrust_warned:
+                logger.warning(
+                    "BRAINTRUST_API_KEY is set but braintrust "
+                    "package is not installed — tracing disabled. "
+                    "Install with: uv sync --all-packages --extra braintrust"
+                )
+                _braintrust_warned = True
+    elif not _braintrust_warned:
+        logger.warning(
+            "BRAINTRUST_API_KEY not set — Braintrust tracing, experiments, and "
+            "prompt versioning are disabled. Set this env var to enable."
+        )
+        _braintrust_warned = True
 
     return client

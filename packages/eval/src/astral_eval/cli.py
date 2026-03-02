@@ -268,7 +268,15 @@ async def _experiment(
     if result.get("tracked"):
         click.echo(f"Experiment '{result['experiment_name']}' logged to Braintrust")
     else:
-        click.echo(f"Experiment '{result['experiment_name']}' (local only)")
+        exp = result["experiment_name"]
+        click.secho(
+            f"WARNING: Braintrust not active — experiment "
+            f"'{exp}' running locally only. Set "
+            "BRAINTRUST_API_KEY and install braintrust "
+            "to enable experiment tracking.",
+            fg="yellow",
+            err=True,
+        )
         scores = result.get("scores", {})
         if scores:
             click.echo(f"\n{'Scorer':<25} {'Score':>6}  {'Details'}")
@@ -344,6 +352,21 @@ async def _compare(
 
     if not dataset_name:
         click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
+
+    # One-time warning if Braintrust is not available
+    import os
+
+    from .experiment import _braintrust_available
+
+    if not _braintrust_available() or not os.environ.get("BRAINTRUST_API_KEY"):
+        click.secho(
+            "WARNING: Braintrust not active — comparisons "
+            "will run locally only. Set BRAINTRUST_API_KEY "
+            "and install braintrust to enable dashboard "
+            "comparison.",
+            fg="yellow",
+            err=True,
+        )
 
     for strategy_name in strategies:
         if strategy_name not in STRATEGIES:
