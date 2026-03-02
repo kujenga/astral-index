@@ -30,13 +30,34 @@ class TwitterScraper(BaseScraper):
         self.limit: int = twitter_config.get("limit", 20)
         self.min_likes: int = twitter_config.get("min_likes", 5)
 
+    async def _resolve_user_id(
+        self, client: Any, username: str, api_key: str
+    ) -> str | None:
+        """Resolve a Twitter username to a numeric user ID."""
+        try:
+            resp = await client.get(
+                f"{SOCIALDATA_BASE}/twitter/user/{username}",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+        except Exception:
+            logger.warning("Failed to resolve user ID for @%s", username)
+            return None
+        data = resp.json()
+        return str(data.get("id_str") or data.get("id", "")) or None
+
     async def _fetch_user_tweets(
         self, client: Any, username: str, api_key: str
     ) -> list[ContentItem]:
         """Fetch recent tweets from a user via SocialData API."""
+        # The tweets endpoint requires a numeric user ID, not a username
+        user_id = await self._resolve_user_id(client, username, api_key)
+        if not user_id:
+            return []
+
         try:
             resp = await client.get(
-                f"{SOCIALDATA_BASE}/twitter/user/{username}/tweets",
+                f"{SOCIALDATA_BASE}/twitter/user/{user_id}/tweets",
                 headers={"Authorization": f"Bearer {api_key}"},
             )
             resp.raise_for_status()

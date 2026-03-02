@@ -128,6 +128,8 @@ BLUESKY_FEED_RESPONSE = {
     ],
 }
 
+TWITTER_USER_RESPONSE = {"id_str": "44196397", "id": 44196397, "screen_name": "spacex"}
+
 TWITTER_RESPONSE = {
     "tweets": [
         {
@@ -262,6 +264,7 @@ def canned():
         snapi_response = SNAPI_RESPONSE
         bluesky_resolve_response = BLUESKY_RESOLVE_RESPONSE
         bluesky_feed_response = BLUESKY_FEED_RESPONSE
+        twitter_user_response = TWITTER_USER_RESPONSE
         twitter_response = TWITTER_RESPONSE
         arxiv_rss_xml = ARXIV_RSS_XML
 

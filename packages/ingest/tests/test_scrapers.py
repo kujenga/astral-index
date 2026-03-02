@@ -312,7 +312,9 @@ class TestTwitterScraper:
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=canned.twitter_response)
+            if "/tweets" in str(request.url):
+                return httpx.Response(200, json=canned.twitter_response)
+            return httpx.Response(200, json=canned.twitter_user_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})
@@ -328,7 +330,9 @@ class TestTwitterScraper:
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=canned.twitter_response)
+            if "/tweets" in str(request.url):
+                return httpx.Response(200, json=canned.twitter_response)
+            return httpx.Response(200, json=canned.twitter_user_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})
@@ -342,7 +346,9 @@ class TestTwitterScraper:
         monkeypatch.setenv("SOCIALDATA_API_KEY", "test-key")
 
         def handler(request: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, json=canned.twitter_response)
+            if "/tweets" in str(request.url):
+                return httpx.Response(200, json=canned.twitter_response)
+            return httpx.Response(200, json=canned.twitter_user_response)
 
         patch_http(handler)
         scraper = TwitterScraper({"accounts": ["spacex"], "min_likes": 5})
