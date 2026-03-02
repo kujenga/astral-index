@@ -147,6 +147,7 @@ async def _draft(
 
     if output_path:
         md_path = Path(output_path)
+        md_path.parent.mkdir(parents=True, exist_ok=True)
         md_path.write_text(newsletter.markdown)
         click.echo(f"Draft written to {md_path}")
 
