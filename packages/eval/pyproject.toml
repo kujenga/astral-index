@@ -1,16 +1,29 @@
 [project]
 name = "astral-eval"
 version = "0.1.0"
-description = "Add your description here"
+description = "Quality evaluation for Astral Index newsletters"
 authors = [
     { name = "Aaron Taylor", email = "git@ataylor.io" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "astral-core",
+    "astral-author",
+    "anthropic>=0.40",
+    "click>=8.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+braintrust = ["braintrust>=0.0.160"]
 
 [project.scripts]
-astral-eval = "astral_eval:main"
+astral-eval = "astral_eval.cli:cli"
 
 [build-system]
 requires = ["uv_build>=0.10.7,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+astral-core = { workspace = true }
+astral-author = { workspace = true }

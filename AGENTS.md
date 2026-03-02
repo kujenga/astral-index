@@ -41,6 +41,9 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
+- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use Claude Haiku with A–D rubrics; optional Braintrust tracing via `wrap_anthropic` when `BRAINTRUST_API_KEY` is set.
+- **Score** (`astral_eval.scores`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Decoupled from any eval framework.
+- **Eval runner** (`astral_eval.runner`) — `run_quality_eval(draft, items, use_llm=True)` orchestrates heuristic (sync) and LLM (async concurrent) scorers.
 
 ## Public repository
 
@@ -117,6 +120,18 @@ uv run --package astral-serve astral-serve send 2026-03-01
 # View publishing status
 uv run --package astral-serve astral-serve status
 uv run --package astral-serve astral-serve status 2026-03-01
+
+# Evaluate newsletter quality (heuristic only, no LLM needed)
+uv run --package astral-eval astral-eval quality --since 30 --no-llm --strategy headlines-only
+
+# Full quality eval with LLM judges (needs ANTHROPIC_API_KEY)
+uv run --package astral-eval astral-eval quality --since 30 --strategy headlines-only
+
+# Evaluate from an existing draft JSON file
+uv run --package astral-eval astral-eval quality --since 30 --draft-file data/drafts/draft.json
+
+# Write evaluation results to file
+uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
 ```
 
 ### Testing
@@ -126,7 +141,7 @@ uv run pytest -v                          # all packages
 uv run pytest packages/ingest/tests/ -v   # one package
 ```
 
-**No `__init__.py` in test directories.** The uv workspace has multiple `packages/*/tests/` dirs; adding `__init__.py` creates conflicting `tests` packages that cause `ImportPathMismatchError`.
+**No `__init__.py` in test directories.** The uv workspace has multiple `packages/*/tests/` dirs; adding `__init__.py` creates conflicting `tests` packages that cause `ImportPathMismatchError`. Test filenames must also be **unique across packages** — if two packages both have `test_cli.py`, pytest will hit `ImportPathMismatchError`. Use package-prefixed names (e.g., `test_eval_cli.py`) when a basename already exists elsewhere.
 
 **HTTP mock seam:** All scrapers and expansion modules import `make_http_client` from `scrapers.base`. The `patch_http` conftest fixture patches this at every import site to inject `httpx.MockTransport`. When adding a new module that makes HTTP calls, use `make_http_client` and add the module path to `patch_http`'s patch list. No extra test dependencies needed — uses httpx's built-in `MockTransport`.
 
@@ -157,6 +172,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
+- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for LLM judge calls via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Design references
