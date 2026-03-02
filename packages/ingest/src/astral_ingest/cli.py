@@ -8,9 +8,8 @@ from typing import Any
 
 import click
 import yaml
-from dotenv import load_dotenv
 
-from astral_core import ContentItem, ContentStore
+from astral_core import ContentItem, ContentStore, bootstrap
 
 from .scrapers.arxiv import ArxivScraper
 from .scrapers.bluesky import BlueskyScraper
@@ -141,7 +140,7 @@ def _describe_range(since: datetime, before: datetime | None) -> str:
 @click.group()
 def cli() -> None:
     """Astral Index — space news ingestion."""
-    load_dotenv()
+    bootstrap()
 
 
 @cli.command()

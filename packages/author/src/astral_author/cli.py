@@ -9,9 +9,8 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import click
-from dotenv import load_dotenv
 
-from astral_core import ContentItem, ContentStore
+from astral_core import ContentItem, ContentStore, bootstrap
 
 from .pipeline import STRATEGIES, build_strategy
 
@@ -58,7 +57,7 @@ def _describe_range(since: datetime, before: datetime | None) -> str:
 @click.group()
 def cli() -> None:
     """Astral Index — newsletter authoring pipeline."""
-    load_dotenv()
+    bootstrap()
 
 
 @cli.command()

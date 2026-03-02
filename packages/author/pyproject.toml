@@ -10,7 +10,6 @@ dependencies = [
     "astral-core",
     "anthropic>=0.40",
     "click>=8.1",
-    "python-dotenv>=1.0",
 ]
 
 [project.scripts]

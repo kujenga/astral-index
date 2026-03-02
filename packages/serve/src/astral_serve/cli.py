@@ -7,9 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import click
-from dotenv import load_dotenv
 
 from astral_author import NewsletterDraft
+from astral_core import bootstrap
 
 from .buttondown import ButtondownClient, ButtondownError
 from .models import PublishRecord, PublishStatus
@@ -19,7 +19,7 @@ from .store import NewsletterStore
 @click.group()
 def cli() -> None:
     """Astral Index — newsletter delivery."""
-    load_dotenv()
+    bootstrap()
 
 
 @cli.command()

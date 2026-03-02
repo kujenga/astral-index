@@ -153,7 +153,6 @@ dependencies = [
     { name = "anthropic" },
     { name = "astral-core" },
     { name = "click" },
-    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -161,7 +160,6 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.40" },
     { name = "astral-core", editable = "packages/core" },
     { name = "click", specifier = ">=8.1" },
-    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 
 [[package]]
@@ -171,12 +169,14 @@ source = { editable = "packages/core" }
 dependencies = [
     { name = "pydantic" },
     { name = "python-dateutil" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2.6" },
     { name = "python-dateutil", specifier = ">=2.9" },
+    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 
 [[package]]
@@ -188,7 +188,6 @@ dependencies = [
     { name = "astral-author" },
     { name = "astral-core" },
     { name = "click" },
-    { name = "python-dotenv" },
 ]
 
 [package.optional-dependencies]
@@ -203,7 +202,6 @@ requires-dist = [
     { name = "astral-core", editable = "packages/core" },
     { name = "braintrust", marker = "extra == 'braintrust'", specifier = ">=0.0.160" },
     { name = "click", specifier = ">=8.1" },
-    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 provides-extras = ["braintrust"]
 
@@ -243,7 +241,6 @@ dependencies = [
     { name = "httpx" },
     { name = "newspaper4k" },
     { name = "pdfplumber" },
-    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "readability-lxml" },
     { name = "trafilatura" },
@@ -265,7 +262,6 @@ requires-dist = [
     { name = "newspaper4k", specifier = ">=0.9.3" },
     { name = "pdfplumber", specifier = ">=0.11.0" },
     { name = "playwright", marker = "extra == 'js'", specifier = ">=1.45" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "readability-lxml", specifier = ">=0.8.4" },
     { name = "trafilatura", specifier = ">=2.0.0" },
@@ -281,7 +277,6 @@ dependencies = [
     { name = "astral-core" },
     { name = "click" },
     { name = "httpx" },
-    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -290,7 +285,6 @@ requires-dist = [
     { name = "astral-core", editable = "packages/core" },
     { name = "click", specifier = ">=8.1" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 
 [[package]]

@@ -1,3 +1,4 @@
+from .bootstrap import bootstrap
 from .models import (
     ContentItem,
     ContentType,
@@ -15,6 +16,7 @@ __all__ = [
     "ContentType",
     "ExtractionMethod",
     "SpaceCategory",
+    "bootstrap",
     "content_hash",
     "normalize_url",
     "url_hash",

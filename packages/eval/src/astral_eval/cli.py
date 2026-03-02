@@ -8,11 +8,10 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import click
-from dotenv import load_dotenv
 
 from astral_author.models import NewsletterDraft
 from astral_author.pipeline import STRATEGIES, build_strategy
-from astral_core import ContentStore
+from astral_core import ContentStore, bootstrap
 
 from .runner import run_quality_eval
 
@@ -37,7 +36,7 @@ def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> date
 @click.group()
 def cli() -> None:
     """Astral Index — newsletter quality evaluation."""
-    load_dotenv()
+    bootstrap()
 
 
 @cli.command()
