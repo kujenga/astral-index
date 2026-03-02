@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
+from typing import Any
 
-from astral_core import ContentItem
+from astral_core import ContentItem, get_llm_client
 
 from .models import ItemSummary, NewsletterSection, SectionType
 
@@ -89,18 +89,11 @@ class LLMSummarizer:
         section: NewsletterSection,
         items: dict[str, ContentItem],
     ) -> NewsletterSection:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            logger.info("No ANTHROPIC_API_KEY, falling back to excerpts")
+        client = get_llm_client()
+        if client is None:
+            logger.info("No LLM client available, falling back to excerpts")
             return await self._fallback.summarize(section, items)
 
-        try:
-            import anthropic
-        except ImportError:
-            logger.warning("anthropic package not installed, using excerpts")
-            return await self._fallback.summarize(section, items)
-
-        client = anthropic.AsyncAnthropic(api_key=api_key)
         sem = asyncio.Semaphore(self.MAX_CONCURRENT)
 
         # Summarize each item concurrently
@@ -117,7 +110,7 @@ class LLMSummarizer:
                         system=_ITEM_SYSTEM,
                         messages=[{"role": "user", "content": user_msg}],
                     )
-                    summary = resp.content[0].text.strip()  # type: ignore[union-attr]
+                    summary = resp.content[0].text.strip()
                 except Exception:
                     logger.warning(
                         "LLM summary failed for %s, using excerpt",
@@ -148,16 +141,11 @@ class LLMSummarizer:
 
     async def _generate_prose(
         self,
-        client: object,
+        client: Any,
         sem: asyncio.Semaphore,
         heading: str,
         summaries: list[ItemSummary],
     ) -> str | None:
-        import anthropic
-
-        if not isinstance(client, anthropic.AsyncAnthropic):
-            return None
-
         bullet_list = "\n".join(f"- {s.title}: {s.summary}" for s in summaries)
         user_msg = f"Section: {heading}\n\nArticles:\n{bullet_list}"
 
@@ -169,7 +157,7 @@ class LLMSummarizer:
                     system=_PROSE_SYSTEM,
                     messages=[{"role": "user", "content": user_msg}],
                 )
-                return resp.content[0].text.strip()  # type: ignore[union-attr]
+                return resp.content[0].text.strip()
             except Exception:
                 logger.warning(
                     "LLM prose generation failed for %s", heading, exc_info=True

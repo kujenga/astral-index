@@ -41,7 +41,8 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
-- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use Claude Haiku with A–D rubrics; optional Braintrust tracing via `wrap_anthropic` when `BRAINTRUST_API_KEY` is set.
+- **`get_llm_client`** (`astral_core.llm`) — shared factory returning an `AsyncAnthropic` client (or `None` when `ANTHROPIC_API_KEY` is unset). Automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set. All LLM callsites (classifier, summarizer, drafter, eval judges) use this instead of creating clients directly.
+- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use Claude Haiku with A–D rubrics.
 - **Score** (`astral_eval.scores`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Decoupled from any eval framework.
 - **Eval runner** (`astral_eval.runner`) — `run_quality_eval(draft, items, use_llm=True)` orchestrates heuristic (sync) and LLM (async concurrent) scorers.
 
@@ -60,6 +61,13 @@ This repo is public. Keep this in mind:
 - Always use `uv run` to execute Python commands — never call `python` or `python3` directly
 - Workspace packages depend on each other via `tool.uv.sources` (e.g., `astral-core = { workspace = true }` in astral-ingest's pyproject.toml)
 - Scraped data lives in `data/` (gitignored) — never commit it
+
+### Shared helpers in `astral_core`
+
+Use these instead of rolling your own:
+
+- **`bootstrap()`** (`astral_core.bootstrap`) — call once at CLI startup. Loads `.env` via `python-dotenv` and silences known-harmless warnings. Every CLI entry point (ingest, author, serve, eval) already calls this.
+- **`get_llm_client()`** (`astral_core.llm`) — the **only** way to create an Anthropic client. Returns `AsyncAnthropic` or `None`. Never instantiate `anthropic.AsyncAnthropic` directly — this factory handles API key checks, graceful degradation, and Braintrust tracing. When adding a new LLM callsite, import from `astral_core` and check for `None` before calling.
 
 ### uv
 
@@ -172,7 +180,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
-- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for LLM judge calls via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
+- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for all LLM calls (classification, summarization, drafting, eval judges) via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Keeping docs current

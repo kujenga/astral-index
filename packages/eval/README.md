@@ -126,17 +126,17 @@ for name, score in sorted(scores.items()):
 
 ## Braintrust tracing
 
-When `BRAINTRUST_API_KEY` is set, LLM judge calls are automatically traced via `braintrust.wrap_anthropic`. Install the optional dependency:
+When `BRAINTRUST_API_KEY` is set, all LLM calls across the system (classification, summarization, drafting, and eval judges) are automatically traced via `braintrust.wrap_anthropic`. This is handled by the shared `astral_core.get_llm_client()` factory that all callsites use. Install the optional dependency:
 
 ```bash
 uv sync --all-packages --extra braintrust
 ```
 
-This logs every judge call (prompt, response, score) to Braintrust for analysis without any code changes.
+This logs every LLM call (prompt, response, score) to Braintrust for analysis without any code changes.
 
 ## Credentials
 
 | Variable | Required for | Notes |
 |----------|-------------|-------|
 | `ANTHROPIC_API_KEY` | LLM judges | Judges degrade gracefully (return `None`) without it |
-| `BRAINTRUST_API_KEY` | Tracing (optional) | Enables automatic trace logging for judge calls |
+| `BRAINTRUST_API_KEY` | Tracing (optional) | Enables automatic trace logging for all LLM calls system-wide |

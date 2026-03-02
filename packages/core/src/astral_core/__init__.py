@@ -1,4 +1,5 @@
 from .bootstrap import bootstrap
+from .llm import get_llm_client
 from .models import (
     ContentItem,
     ContentType,
@@ -18,6 +19,7 @@ __all__ = [
     "SpaceCategory",
     "bootstrap",
     "content_hash",
+    "get_llm_client",
     "normalize_url",
     "url_hash",
 ]

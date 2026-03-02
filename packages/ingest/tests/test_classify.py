@@ -86,10 +86,8 @@ async def test_llm_no_api_key_returns_none():
     assert result is None
 
 
-async def test_llm_valid_response(monkeypatch):
+async def test_llm_valid_response():
     """Mocked valid API response returns correct SpaceCategory."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
     mock_content = MagicMock()
     mock_content.text = "launch_vehicles"
     mock_response = MagicMock()
@@ -98,16 +96,14 @@ async def test_llm_valid_response(monkeypatch):
     mock_client = AsyncMock()
     mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-    with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+    with patch("astral_ingest.classify.llm.get_llm_client", return_value=mock_client):
         result = await classify_with_llm("SpaceX Starship orbital test flight")
 
     assert result == SpaceCategory.LAUNCH_VEHICLES
 
 
-async def test_llm_invalid_response(monkeypatch):
+async def test_llm_invalid_response():
     """Mocked invalid category string returns None."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
     mock_content = MagicMock()
     mock_content.text = "not_a_real_category"
     mock_response = MagicMock()
@@ -116,16 +112,14 @@ async def test_llm_invalid_response(monkeypatch):
     mock_client = AsyncMock()
     mock_client.messages.create = AsyncMock(return_value=mock_response)
 
-    with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+    with patch("astral_ingest.classify.llm.get_llm_client", return_value=mock_client):
         result = await classify_with_llm("Some article")
 
     assert result is None
 
 
-async def test_llm_batch_preserves_order(monkeypatch):
+async def test_llm_batch_preserves_order():
     """classify_batch_with_llm returns results in input order."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-
     responses = ["launch_vehicles", "space_science", "lunar"]
 
     call_count = 0
@@ -142,7 +136,7 @@ async def test_llm_batch_preserves_order(monkeypatch):
     mock_client = AsyncMock()
     mock_client.messages.create = _mock_create
 
-    with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+    with patch("astral_ingest.classify.llm.get_llm_client", return_value=mock_client):
         items = [
             ("Falcon 9 launch", "excerpt1"),
             ("JWST galaxy discovery", "excerpt2"),

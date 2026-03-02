@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from collections.abc import Callable
 
-from astral_core import SpaceCategory
+from astral_core import SpaceCategory, get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +96,8 @@ async def classify_with_llm(
     Returns None if the API key is not set, the model returns
     an invalid category, or the call fails.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-
-    try:
-        import anthropic
-    except ImportError:
-        logger.warning("anthropic package not installed, skipping LLM classify")
+    client = get_llm_client()
+    if client is None:
         return None
 
     user_content = f"Title: {title}"
@@ -117,12 +110,11 @@ async def classify_with_llm(
     ]
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
         resp = await client.messages.create(
             model=MODEL,
             max_tokens=50,
             system=_SYSTEM_PROMPT,
-            messages=messages,  # type: ignore[arg-type]
+            messages=messages,
         )
         raw = resp.content[0].text.strip().lower()
 

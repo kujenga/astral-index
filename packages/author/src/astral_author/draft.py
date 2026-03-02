@@ -7,10 +7,9 @@ an introduction, formatted sections, and closing.
 from __future__ import annotations
 
 import logging
-import os
 from datetime import date
 
-from astral_core import ContentItem
+from astral_core import ContentItem, get_llm_client
 
 from .models import ItemSummary, NewsletterDraft, NewsletterSection
 
@@ -41,25 +40,19 @@ def _render_section(section: NewsletterSection) -> str:
 
 async def _generate_intro(top_titles: list[str]) -> str | None:
     """Generate an LLM introduction mentioning top stories. Returns None on failure."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-
-    try:
-        import anthropic
-    except ImportError:
+    client = get_llm_client()
+    if client is None:
         return None
 
     bullets = "\n".join(f"- {t}" for t in top_titles[:3])
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
         resp = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
             system=_INTRO_SYSTEM,
             messages=[{"role": "user", "content": f"Top stories:\n{bullets}"}],
         )
-        return resp.content[0].text.strip()  # type: ignore[union-attr]
+        return resp.content[0].text.strip()
     except Exception:
         logger.warning("LLM intro generation failed", exc_info=True)
         return None

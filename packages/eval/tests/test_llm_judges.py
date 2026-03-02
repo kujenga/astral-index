@@ -12,38 +12,12 @@ from astral_eval.scorers.llm_judges import (
     _EDITORIAL_QUALITY_SYSTEM,
     _LINK_QUALITY_SYSTEM,
     _READABILITY_FIT_SYSTEM,
-    _has_api_key,
     coherence_flow,
     coverage_adequacy,
     editorial_quality,
     link_quality,
     readability_fit,
 )
-
-# -- API key detection --
-
-
-class TestHasApiKey:
-    def test_no_keys_returns_none(self):
-        """With no API keys set, returns None."""
-        assert _has_api_key() is None
-
-    def test_anthropic_key(self, monkeypatch):
-        """Detects ANTHROPIC_API_KEY."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-        assert _has_api_key() == "anthropic"
-
-    def test_braintrust_key(self, monkeypatch):
-        """Detects BRAINTRUST_API_KEY as fallback."""
-        monkeypatch.setenv("BRAINTRUST_API_KEY", "test-key")
-        assert _has_api_key() == "braintrust"
-
-    def test_anthropic_takes_priority(self, monkeypatch):
-        """ANTHROPIC_API_KEY takes priority over BRAINTRUST_API_KEY."""
-        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-        monkeypatch.setenv("BRAINTRUST_API_KEY", "test-key")
-        assert _has_api_key() == "anthropic"
-
 
 # -- Graceful degradation (no API keys) --
 

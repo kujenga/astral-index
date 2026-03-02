@@ -1,49 +1,21 @@
 """LLM-based newsletter quality scorers using A-D rubrics.
 
-Primary path: Anthropic SDK (Claude Haiku) with optional Braintrust tracing.
-All judges return ``None`` when no API key is available, letting the runner
-skip them gracefully.
+Primary path: Anthropic SDK (Claude Haiku) with optional Braintrust tracing
+via ``astral_core.get_llm_client()``. All judges return ``None`` when no API
+key is available, letting the runner skip them gracefully.
 """
 
 from __future__ import annotations
 
-import os
 import re
 from typing import Any
 
+from astral_core import get_llm_client
 from astral_eval.scores import CHOICE_SCORES, Score
 
 # Claude Haiku -- cheap, fast, different model family than generation (Sonnet)
 # to avoid self-preference bias
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
-
-
-def _has_api_key() -> str | None:
-    """Return the available provider: 'anthropic', 'braintrust', or None."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return "anthropic"
-    if os.environ.get("BRAINTRUST_API_KEY"):
-        return "braintrust"
-    return None
-
-
-def _get_anthropic_client():
-    """Build an Anthropic client, optionally wrapped with Braintrust tracing."""
-    import anthropic
-
-    client = anthropic.AsyncAnthropic()
-
-    # Wrap with Braintrust for automatic trace logging when available
-    if os.environ.get("BRAINTRUST_API_KEY"):
-        try:
-            from braintrust import init_logger, wrap_anthropic
-
-            init_logger(project="astral-eval")
-            client = wrap_anthropic(client)
-        except ImportError:
-            pass
-
-    return client
 
 
 async def _judge_with_anthropic(
@@ -53,7 +25,9 @@ async def _judge_with_anthropic(
     model: str = _DEFAULT_MODEL,
 ) -> Score | None:
     """Send a rubric prompt to Claude, extract A/B/C/D choice, return Score."""
-    client = _get_anthropic_client()
+    client = get_llm_client()
+    if client is None:
+        return None
 
     try:
         response = await client.messages.create(
@@ -166,8 +140,6 @@ async def editorial_quality(
     **kwargs: Any,
 ) -> Score | None:
     """Judge editorial voice, sentence variety, and filler."""
-    if not _has_api_key():
-        return None
     markdown = output.get("markdown", "")
     return await _judge_with_anthropic(
         "editorial_quality",
@@ -183,8 +155,6 @@ async def coverage_adequacy(
     **kwargs: Any,
 ) -> Score | None:
     """Judge whether the week's important stories are covered."""
-    if not _has_api_key():
-        return None
     markdown = output.get("markdown", "")
 
     # Build context from top input items
@@ -215,8 +185,6 @@ async def readability_fit(
     **kwargs: Any,
 ) -> Score | None:
     """Judge readability for a space-professional audience."""
-    if not _has_api_key():
-        return None
     markdown = output.get("markdown", "")
     return await _judge_with_anthropic(
         "readability_fit",
@@ -232,8 +200,6 @@ async def link_quality(
     **kwargs: Any,
 ) -> Score | None:
     """Judge link sourcing, anchor text, and primary-source preference."""
-    if not _has_api_key():
-        return None
     markdown = output.get("markdown", "")
     return await _judge_with_anthropic(
         "link_quality",
@@ -249,8 +215,6 @@ async def coherence_flow(
     **kwargs: Any,
 ) -> Score | None:
     """Judge section ordering, narrative arc, and transitions."""
-    if not _has_api_key():
-        return None
     markdown = output.get("markdown", "")
     return await _judge_with_anthropic(
         "coherence_flow",
