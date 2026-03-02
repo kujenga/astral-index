@@ -42,9 +42,15 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
 - **`get_llm_client`** (`astral_core.llm`) — shared factory returning an `AsyncAnthropic` client (or `None` when `ANTHROPIC_API_KEY` is unset). Automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set. All LLM callsites (classifier, summarizer, drafter, eval judges) use this instead of creating clients directly.
-- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use Claude Haiku with A–D rubrics.
-- **Score** (`astral_eval.scores`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Decoupled from any eval framework.
+- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use GPT-4o-mini via Braintrust AI Proxy (or Claude Haiku fallback) with A–D rubrics.
+- **Score** (`astral_core.scoring`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Lives in core so both eval and author can import it.
+- **Heuristic scorers** (`astral_core.scoring`) — the 3 heuristic scorer implementations live in core (re-exported by `astral_eval.scorers.heuristic` for backward compat). This avoids a circular dep so the author pipeline can run online scoring.
 - **Eval runner** (`astral_eval.runner`) — `run_quality_eval(draft, items, use_llm=True)` orchestrates heuristic (sync) and LLM (async concurrent) scorers.
+- **Braintrust experiment runner** (`astral_eval.experiment`) — `run_experiment()` wraps `braintrust.EvalAsync()` with adapted scorers. Falls back to local `run_quality_eval()` when Braintrust is not available.
+- **Braintrust scorer adapters** (`astral_eval.braintrust_scorers`) — `wrap_scorer()` bridges astral-eval's `(output=, input=)` signature to Braintrust's `(input, output)` signature.
+- **Golden-week datasets** (`astral_eval.datasets`) — `upload_golden_week()` pushes frozen ContentItem sets to Braintrust for reproducible regression testing.
+- **Prompt management** (`astral_core.prompts`) — `load_prompt(slug, fallback)` fetches versioned prompts from Braintrust when available, with zero-change fallback to hardcoded strings. All 4 LLM prompts (item-summarizer, prose-generator, newsletter-intro, category-classifier) use this.
+- **Online scoring** — `DraftPipeline.run()` automatically runs heuristic scorers after every draft and logs scores to the current Braintrust span.
 
 ## Public repository
 
@@ -68,6 +74,7 @@ Use these instead of rolling your own:
 
 - **`bootstrap()`** (`astral_core.bootstrap`) — call once at CLI startup. Loads `.env` via `python-dotenv` and silences known-harmless warnings. Every CLI entry point (ingest, author, serve, eval) already calls this.
 - **`get_llm_client()`** (`astral_core.llm`) — the **only** way to create an Anthropic client. Returns `AsyncAnthropic` or `None`. Never instantiate `anthropic.AsyncAnthropic` directly — this factory handles API key checks, graceful degradation, and Braintrust tracing. When adding a new LLM callsite, import from `astral_core` and check for `None` before calling.
+- **`load_prompt(slug, fallback)`** (`astral_core.prompts`) — load a versioned prompt from Braintrust, or return the fallback string. Use this for all system prompts sent to LLMs. The fallback is always the hardcoded constant (e.g., `_ITEM_SYSTEM`), so behavior is unchanged without Braintrust.
 
 ### uv
 
@@ -141,6 +148,23 @@ uv run --package astral-eval astral-eval quality --since 30 --draft-file data/dr
 # Write evaluation results to file
 uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
 
+# Run a Braintrust-tracked experiment (needs BRAINTRUST_API_KEY)
+uv run --package astral-eval astral-eval experiment --since 7 --strategy headlines-only --no-llm
+uv run --package astral-eval astral-eval experiment --dataset golden-week --strategy baseline
+
+# Compare strategies side-by-side (separate experiments per strategy)
+uv run --package astral-eval astral-eval compare baseline headlines-only --since 7
+
+# Upload a golden-week dataset for reproducible evals
+uv run --package astral-eval astral-eval upload-dataset --since 2026-02-22 --name golden-week
+
+# Score an existing draft file (heuristic only, optional Braintrust logging)
+uv run --package astral-eval astral-eval score data/drafts/draft.json --since 7
+
+# Push hardcoded prompts to Braintrust as initial versions
+uv run --package astral-eval astral-eval seed-prompts
+uv run --package astral-eval astral-eval seed-prompts --dry-run
+
 # Run the full weekly pipeline (scrape → expand → classify → draft → eval)
 scripts/weekly.sh
 scripts/weekly.sh --dry-run              # preview mode, minimal LLM cost
@@ -187,7 +211,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
-- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for all LLM calls (classification, summarization, drafting, eval judges) via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
+- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables: (1) automatic trace logging for all LLM calls via `wrap_anthropic`, (2) experiment tracking via `braintrust.EvalAsync()`, (3) golden-week datasets for reproducible evals, (4) versioned prompt loading via `load_prompt()`, (5) online scoring logged to spans, (6) LLM judge routing via AI Proxy (GPT-4o-mini). Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Keeping docs current
