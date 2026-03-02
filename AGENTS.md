@@ -102,6 +102,17 @@ uv run --package astral-author astral-author draft --since 7 --dry-run
 uv run --package astral-author astral-author compare baseline headlines-only --since 7
 ```
 
+### Testing
+
+```bash
+uv run pytest -v                          # all packages
+uv run pytest packages/ingest/tests/ -v   # one package
+```
+
+**No `__init__.py` in test directories.** The uv workspace has multiple `packages/*/tests/` dirs; adding `__init__.py` creates conflicting `tests` packages that cause `ImportPathMismatchError`.
+
+**HTTP mock seam:** All scrapers and expansion modules import `make_http_client` from `scrapers.base`. The `patch_http` conftest fixture patches this at every import site to inject `httpx.MockTransport`. When adding a new module that makes HTTP calls, use `make_http_client` and add the module path to `patch_http`'s patch list. No extra test dependencies needed — uses httpx's built-in `MockTransport`.
+
 ### Linting, Formatting, and Type Checking
 
 Pre-commit hooks run automatically on `git commit`:
