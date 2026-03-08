@@ -119,10 +119,11 @@ async def _run_braintrust(
 
     scorers = ALL_BT_SCORERS if use_llm else HEURISTIC_BT_SCORERS
 
-    # Load data — either from a Braintrust dataset or local items
+    # Load data — either from a Braintrust dataset or local items.
+    # Pass Dataset objects directly so EvalAsync links the experiment to the
+    # dataset and handles iteration internally.
     if dataset_name:
-        dataset = braintrust.init_dataset(project="astral-index", name=dataset_name)
-        data = list(dataset)
+        data = braintrust.init_dataset(project="astral-index", name=dataset_name)
     else:
         # Each test case is one full week → 1-row eval
         input_data = [item.model_dump(mode="json") for item in items]
