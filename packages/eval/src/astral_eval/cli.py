@@ -19,8 +19,12 @@ from .runner import run_quality_eval
 logger = logging.getLogger(__name__)
 
 
-def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
+def _parse_since(
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> datetime | None:
     """Click callback: accept integer days-back or YYYY-MM-DD date string."""
+    if value is None:
+        return None
     try:
         days = int(value)
         return datetime.now(UTC) - timedelta(days=days)
