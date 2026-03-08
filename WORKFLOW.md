@@ -1,6 +1,6 @@
 # Operator Workflow
 
-This guide covers the week-to-week workflow for publishing Astral Index. The pipeline has three layers — **ingest**, **author**, **serve** — each with its own CLI. Every command supports `--dry-run` for cost-free previews.
+This guide covers the week-to-week workflow for publishing Astral Index. The pipeline has four layers — **ingest**, **author**, **serve**, **eval** — each with its own CLI. Every command supports `--dry-run` for cost-free previews.
 
 ## Prerequisites
 
@@ -21,6 +21,7 @@ All stored in `.env` (gitignored), loaded automatically via `python-dotenv`.
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Reddit scraping | Create app at reddit.com/prefs/apps |
 | `SOCIALDATA_API_KEY` | Twitter/X scraping | SocialData.tools bearer token; scraper skips if missing |
 | `BUTTONDOWN_API_KEY` | Newsletter delivery | Required for `draft` and `send` commands |
+| `BRAINTRUST_API_KEY` | Evaluation & prompt management | Enables experiments, datasets, prompt versioning, LLM judge routing via AI Proxy. Install extras: `uv sync --all-packages --extra braintrust` |
 
 Bluesky uses the public AT Protocol API — no credentials needed.
 
@@ -91,7 +92,24 @@ Read the generated markdown. Check for:
 
 If something's off, tweak parameters and re-run `draft`, or edit the markdown directly. (If editing markdown directly, also update the `.json` sidecar or regenerate it.)
 
-### 4. Deliver
+### 4. Evaluate (optional)
+
+Score the draft before sending. Heuristic scorers (source diversity, category coverage, link count) run locally with no API cost. LLM judges (editorial quality, readability, coherence, etc.) need an API key.
+
+```bash
+# Heuristic only (free, fast)
+uv run --package astral-eval astral-eval quality --since 7 --no-llm --draft-file data/drafts/draft.json
+
+# Full eval with LLM judges
+uv run --package astral-eval astral-eval quality --since 7 --draft-file data/drafts/draft.json
+
+# Score an existing draft file (heuristic only, logs to Braintrust if available)
+uv run --package astral-eval astral-eval score data/drafts/draft.json --since 7
+```
+
+Online scoring also runs automatically during `draft` — heuristic scores are logged to the current Braintrust span if tracing is active.
+
+### 5. Deliver
 
 Push the draft to Buttondown, review in their UI, then send.
 
@@ -176,3 +194,63 @@ uv run --package astral-author astral-author draft --since 2026-02-01 --before 2
 uv run pytest -v                          # all tests
 uv run pre-commit run --all-files         # ruff lint + format + ty type check
 ```
+
+---
+
+## Quality Iteration (Braintrust)
+
+Braintrust enables reproducible evaluation: freeze a dataset, change code or prompts, and compare scores across runs. All commands below require `BRAINTRUST_API_KEY`.
+
+### One-time setup
+
+```bash
+# Install Braintrust extras
+uv sync --all-packages --extra braintrust
+
+# Freeze a week of data as a golden dataset
+uv run --package astral-eval astral-eval upload-dataset \
+  --since 2026-03-01 --name golden-week
+
+# Push current hardcoded prompts to Braintrust as initial versions
+uv run --package astral-eval astral-eval seed-prompts
+```
+
+### Run an experiment
+
+Each experiment generates a draft from the frozen dataset, scores it, and logs everything to Braintrust for comparison.
+
+```bash
+# Run against the golden dataset
+uv run --package astral-eval astral-eval experiment \
+  --dataset golden-week --strategy baseline
+
+# Or against live data
+uv run --package astral-eval astral-eval experiment \
+  --since 7 --strategy baseline
+
+# Heuristic scorers only (no LLM cost)
+uv run --package astral-eval astral-eval experiment \
+  --dataset golden-week --strategy baseline --no-llm
+```
+
+### Compare strategies
+
+Runs separate experiments per strategy and prints a side-by-side score table.
+
+```bash
+uv run --package astral-eval astral-eval compare \
+  baseline headlines-only --dataset golden-week
+```
+
+### The iteration loop
+
+1. **Make a change** — tweak a prompt in the Braintrust UI, adjust ranker weights, modify clustering thresholds, or add a new strategy.
+2. **Run an experiment** against the same golden dataset.
+3. **Compare in the Braintrust dashboard** — diff any two experiments to see which scores improved or regressed.
+4. **Repeat.**
+
+The golden dataset holds input constant, so score changes are attributable to your code/prompt changes rather than different input data.
+
+### CI integration
+
+PRs that touch `packages/author/` or `packages/eval/` automatically run heuristic evaluation. Add the `eval-full` label to also run LLM judges. See `.github/workflows/eval.yml`.
