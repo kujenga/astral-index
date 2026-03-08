@@ -52,6 +52,21 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Prompt management** (`astral_core.prompts`) — `load_prompt(slug, fallback)` fetches versioned prompts from Braintrust when available, with zero-change fallback to hardcoded strings. All 4 LLM prompts (item-summarizer, prose-generator, newsletter-intro, category-classifier) use this.
 - **Online scoring** — `DraftPipeline.run()` automatically runs heuristic scorers after every draft and logs scores to the current Braintrust span.
 
+### Braintrust integration
+
+Braintrust is wired into the project at multiple layers. Everything degrades gracefully when `BRAINTRUST_API_KEY` is unset — hardcoded fallbacks are used and no errors are raised (only a one-time warning from `get_llm_client()`).
+
+**Touch points — know these when modifying LLM or eval code:**
+
+1. **Tracing** — `get_llm_client()` in `astral_core.llm` wraps the Anthropic client with `braintrust.wrap_anthropic()`. Every LLM call (classify, summarize, draft, judge) is automatically traced. No per-callsite changes needed.
+2. **Prompts** — `load_prompt(slug, fallback)` in `astral_core.prompts` fetches versioned prompts from Braintrust. The 4 prompt slugs are: `item-summarizer`, `prose-generator`, `newsletter-intro`, `category-classifier`. When adding a new LLM prompt, add a slug and pass the hardcoded string as `fallback`.
+3. **Online scoring** — `DraftPipeline.run()` runs heuristic scorers after every draft and logs scores to the active Braintrust span. The scorers live in `astral_core.scoring` (not `astral_eval`) to avoid a circular dependency.
+4. **Experiments** — `run_experiment()` in `astral_eval.experiment` wraps `braintrust.EvalAsync()`. Pass a `Dataset` object (not `list(dataset)`) so the SDK links the experiment to the dataset. Falls back to the local `run_quality_eval()` runner when Braintrust is unavailable.
+5. **Scorer adapters** — `wrap_scorer()` in `astral_eval.braintrust_scorers` bridges the astral-eval scorer signature `(*, output=, input=)` to Braintrust's `(input, output, expected=None)`. When adding a new scorer, wrap it and add to `ALL_BT_SCORERS`.
+6. **Datasets** — `upload_golden_week()` in `astral_eval.datasets` uploads a frozen set of ContentItems as a single-row Braintrust dataset (input = list of all items). Each experiment row is one full newsletter generation.
+7. **LLM judges** — the 5 LLM judges in `astral_eval.scorers.llm_judges` route through Braintrust AI Proxy (GPT-4o-mini) when available, falling back to Claude Haiku via the Anthropic client.
+8. **CI** — `.github/workflows/eval.yml` runs heuristic evals on PRs touching `packages/author/` or `packages/eval/`. Add the `eval-full` label for LLM judges.
+
 ## Public repository
 
 This repo is public. Keep this in mind:
@@ -214,11 +229,16 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables: (1) automatic trace logging for all LLM calls via `wrap_anthropic`, (2) experiment tracking via `braintrust.EvalAsync()`, (3) golden-week datasets for reproducible evals, (4) versioned prompt loading via `load_prompt()`, (5) online scoring logged to spans, (6) LLM judge routing via AI Proxy (GPT-4o-mini). Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
+## Operator workflow
+
+See **`WORKFLOW.md`** for the week-to-week publishing workflow: ingest → author → evaluate → deliver. Also covers Braintrust quality iteration (golden-week datasets, experiments, strategy comparison).
+
 ## Keeping docs current
 
 When adding a new package, feature, or pipeline stage, update these files:
 
 - **`AGENTS.md`** (this file) — add key concepts, CLI commands, and credentials. This is the primary reference for agents working in the codebase.
+- **`WORKFLOW.md`** — update if the operator-facing workflow changes (new CLI commands, new pipeline steps, new credentials).
 - **`ARCHITECTURE.md`** — update the package breakdown, data flow diagram, and roadmap. This is the high-level design document for humans. Mark completed phases as "Done" and remove "Not yet implemented" / `(TODO)` labels.
 - **Package `README.md`** — each package under `packages/` should have a README describing its scorers, commands, workflow, or API surface.
 
