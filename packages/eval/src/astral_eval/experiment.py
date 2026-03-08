@@ -11,6 +11,8 @@ import logging
 from datetime import date
 from typing import Any
 
+import click
+
 from astral_author.pipeline import build_strategy
 from astral_core import ContentItem
 
@@ -124,6 +126,16 @@ async def _run_braintrust(
     # dataset and handles iteration internally.
     if dataset_name:
         data = braintrust.init_dataset(project="astral-index", name=dataset_name)
+        # Verify dataset has rows — fail early instead of silently producing 0it
+        row_count = len(list(data.fetch()))
+        if row_count == 0:
+            raise click.ClickException(
+                f"Dataset '{dataset_name}' is empty (0 rows). "
+                "Upload data first with: "
+                "astral-eval upload-dataset --since <date> "
+                "--name <name>"
+            )
+        logger.info("Loaded dataset '%s' with %d row(s)", dataset_name, row_count)
     else:
         # Each test case is one full week → 1-row eval
         input_data = [item.model_dump(mode="json") for item in items]
