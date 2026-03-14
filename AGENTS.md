@@ -238,6 +238,35 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 
 See **`WORKFLOW.md`** for the week-to-week publishing workflow: ingest → author → evaluate → deliver. Also covers Braintrust quality iteration (golden-week datasets, experiments, strategy comparison).
 
+## Skills
+
+Project-local Claude Code skills in `.claude/skills/` automate key development workflows. Invoke with `/<name>` in Claude Code.
+
+### `/publish` — Intelligent Weekly Publishing
+
+Replaces `scripts/weekly.sh` with agent-driven pipeline execution. Runs the full ingest-author-eval-deliver pipeline with quality gates at three checkpoints: strategy selection, quality score threshold, and send confirmation. Supports `--since N`, `--dry-run`, `--send`, `--strategy X`.
+
+### `/iterate` — Quality Improvement Dev Loop
+
+The core build loop: diagnose a weak scorer, propose a targeted change, implement it, run a Braintrust experiment, and keep or revert based on results. Each iteration is atomic (commit on success, revert on failure). Chain multiple runs to compound improvements. Accepts a scorer name, dataset name, or free-text goal.
+
+### `/audit-eval` — Evaluation System QA
+
+Meta-quality check: generates a test draft, runs all scorers, then independently assesses quality to find blind spots (dimensions with no scorer), miscalibrations (scorer disagrees with reality), and silent failures (scorers returning None). Writes `data/eval/audit_report.md` with prioritized improvement targets for `/iterate`.
+
+### `/brainstorm` — Strategic Quality Brainstorming
+
+Read-only analysis: examines source coverage, pipeline stages, strategy configs, and eval gaps. Proposes new sources, pipeline improvements, strategies, and scorers — prioritized by impact and effort. Output feeds into `/iterate` as actionable targets.
+
+### Skill composition
+
+```
+/brainstorm ──(ideas)──> /iterate ──(code changes)──> /publish
+                              ^                            |
+                              |                            |
+/audit-eval ──(scorer fixes)──┘       (low scores) ───────┘
+```
+
 ## Keeping docs current
 
 When adding a new package, feature, or pipeline stage, update these files:

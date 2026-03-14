@@ -260,6 +260,17 @@ uv run --package astral-eval astral-eval compare \
 
 The golden dataset holds input constant, so score changes are attributable to your code/prompt changes rather than different input data.
 
+### Agent-driven iteration (Claude Code skills)
+
+The manual loop above can be automated with project-local Claude Code skills:
+
+- **`/iterate source_diversity`** — agent-driven version of the loop: diagnoses the weak scorer, proposes a change, implements it, runs the experiment, and commits on improvement (reverts on regression). Each run is atomic.
+- **`/audit-eval`** — meta-quality check that independently assesses a draft, compares to scorer output, and identifies blind spots or miscalibrations. Produces an audit report with targets for `/iterate`.
+- **`/brainstorm`** — strategic analysis of source coverage, pipeline gaps, and eval dimensions. Read-only; output feeds into `/iterate`.
+- **`/publish --since 7`** — full pipeline with quality gates (replaces `scripts/weekly.sh`). Includes strategy comparison, score thresholds, and editorial review before delivery.
+
+Typical workflow: `/brainstorm` to identify targets, `/iterate` to implement them, `/audit-eval` to validate scorers, `/publish` to ship.
+
 ### CI integration
 
 PRs that touch `packages/author/` or `packages/eval/` automatically run heuristic evaluation. Add the `eval-full` label to also run LLM judges. See `.github/workflows/eval.yml`.
