@@ -87,8 +87,9 @@ class CategoryClusterer:
         # Uncategorized items go to brief
         brief_items.extend(groups.get(None, []))
 
-        # Sort brief items by score descending
+        # Sort brief items by score descending and cap to prevent imbalance
         brief_items.sort(key=lambda x: x[1], reverse=True)
+        brief_items = brief_items[: self.max_items_per_section]
 
         if brief_items:
             sections.append(
