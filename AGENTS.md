@@ -37,7 +37,7 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - Basic dedup: scrapers check `store.exists(id)` before saving.
 - **Authoring pipeline** (`astral_author`) — four-stage pipeline (rank → cluster → summarize → draft) with swappable implementations via Protocol interfaces.
 - **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
-- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM).
+- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM); "wide-coverage" uses more deep-dive sections (max_deep_dives=5, min_group_size=1); "recency-biased" weights freshness heavily (w_recency=0.50).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
@@ -63,7 +63,7 @@ Braintrust is wired into the project at multiple layers. Everything degrades gra
 3. **Online scoring** — `DraftPipeline.run()` runs heuristic scorers after every draft and logs scores to the active Braintrust span. The scorers live in `astral_core.scoring` (not `astral_eval`) to avoid a circular dependency.
 4. **Experiments** — `run_experiment()` in `astral_eval.experiment` wraps `braintrust.EvalAsync()`. Pass a `Dataset` object (not `list(dataset)`) so the SDK links the experiment to the dataset. Falls back to the local `run_quality_eval()` runner when Braintrust is unavailable.
 5. **Scorer adapters** — `wrap_scorer()` in `astral_eval.braintrust_scorers` bridges the astral-eval scorer signature `(*, output=, input=)` to Braintrust's `(input, output, expected=None)`. When adding a new scorer, wrap it and add to `ALL_BT_SCORERS`.
-6. **Datasets** — `upload_golden_week()` in `astral_eval.datasets` uploads a frozen set of ContentItems as a single-row Braintrust dataset (input = list of all items). Each experiment row is one full newsletter generation.
+6. **Datasets** — `upload_golden_week()` in `astral_eval.datasets` uploads a frozen set of ContentItems as a single-row Braintrust dataset (input = list of all items). `upload_golden_set()` uploads multiple week-windows as separate rows for multi-week baselines. Each experiment row is one full newsletter generation.
 7. **LLM judges** — the 5 LLM judges in `astral_eval.scorers.llm_judges` route through Braintrust AI Proxy (GPT-4o-mini) when available, falling back to Claude Haiku via the Anthropic client.
 8. **CI** — `.github/workflows/eval.yml` runs heuristic evals on PRs touching `packages/author/` or `packages/eval/`. Add the `eval-full` label for LLM judges.
 
@@ -167,11 +167,16 @@ uv run --package astral-eval astral-eval quality --since 30 --no-llm --output da
 uv run --package astral-eval astral-eval experiment --since 7 --strategy headlines-only --no-llm
 uv run --package astral-eval astral-eval experiment --dataset golden-week --strategy baseline
 
-# Compare strategies side-by-side (separate experiments per strategy)
+# Compare strategies in parallel (separate experiments per strategy)
 uv run --package astral-eval astral-eval compare baseline headlines-only --since 7
+uv run --package astral-eval astral-eval compare baseline wide-coverage recency-biased --dataset golden-3week --no-llm
 
 # Upload a golden-week dataset for reproducible evals
 uv run --package astral-eval astral-eval upload-dataset --since 2026-02-22 --name golden-week
+
+# Upload a multi-week golden set (one row per week)
+uv run --package astral-eval astral-eval upload-dataset \
+    --since 2026-02-17 --until 2026-03-10 --name golden-3week --multi-week
 
 # Score an existing draft file (heuristic only, optional Braintrust logging)
 uv run --package astral-eval astral-eval score data/drafts/draft.json --since 7

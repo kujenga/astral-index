@@ -123,10 +123,37 @@ def _build_headlines_only() -> DraftPipeline:
     )
 
 
+def _build_wide_coverage() -> DraftPipeline:
+    return DraftPipeline(
+        name="wide-coverage",
+        ranker=EngagementRanker(),
+        clusterer=CategoryClusterer(max_deep_dives=5, min_group_size=1),
+        summarizer=ExcerptSummarizer(),
+        drafter=MarkdownDrafter(),
+    )
+
+
+def _build_recency_biased() -> DraftPipeline:
+    return DraftPipeline(
+        name="recency-biased",
+        ranker=EngagementRanker(
+            w_recency=0.50,
+            w_engagement=0.20,
+            w_source=0.20,
+            w_quality=0.10,
+        ),
+        clusterer=CategoryClusterer(),
+        summarizer=ExcerptSummarizer(),
+        drafter=MarkdownDrafter(),
+    )
+
+
 # Registry of named strategies
 STRATEGIES: dict[str, Callable[[], DraftPipeline]] = {
     "baseline": _build_baseline,
     "headlines-only": _build_headlines_only,
+    "wide-coverage": _build_wide_coverage,
+    "recency-biased": _build_recency_biased,
 }
 
 

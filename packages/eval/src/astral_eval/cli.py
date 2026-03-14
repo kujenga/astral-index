@@ -372,19 +372,38 @@ async def _compare(
             err=True,
         )
 
+    # Validate strategy names upfront
+    valid_strategies = []
     for strategy_name in strategies:
         if strategy_name not in STRATEGIES:
             click.echo(f"Unknown strategy: {strategy_name}", err=True)
-            continue
+        else:
+            valid_strategies.append(strategy_name)
 
-        click.echo(f"\n--- {strategy_name} ---")
-        result = await run_experiment(
-            strategy_name,
+    if not valid_strategies:
+        click.echo("No valid strategies to compare.", err=True)
+        return
+
+    # Run experiments in parallel
+    coros = [
+        run_experiment(
+            name,
             items,
             max_items=max_items,
             use_llm=not no_llm,
             dataset_name=dataset_name,
         )
+        for name in valid_strategies
+    ]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+
+    # Print results in original order
+    for strategy_name, result in zip(valid_strategies, results, strict=True):
+        click.echo(f"\n--- {strategy_name} ---")
+        if isinstance(result, BaseException):
+            logger.error("Strategy %s failed: %s", strategy_name, result)
+            click.echo(f"  ERROR: {result}", err=True)
+            continue
 
         if result.get("tracked"):
             click.echo(f"Logged to Braintrust as '{result['experiment_name']}'")
@@ -425,24 +444,47 @@ async def _compare(
     type=str,
     help="Braintrust dataset name.",
 )
+@click.option(
+    "--multi-week",
+    is_flag=True,
+    help="Split date range into 7-day rows (one row per week).",
+)
 def upload_dataset(
     since: datetime,
     until: datetime | None,
     dataset_name: str,
+    multi_week: bool,
 ) -> None:
     """Upload a golden-week dataset to Braintrust for reproducible evals."""
-    from .datasets import upload_golden_week
+    if multi_week:
+        from .datasets import _week_ranges, upload_golden_set
 
-    result = upload_golden_week(
-        since=since,
-        until=until,
-        dataset_name=dataset_name,
-    )
+        if until is None:
+            until = datetime.now(UTC)
+        weeks = _week_ranges(since, until)
+        result = upload_golden_set(
+            weeks=weeks,
+            dataset_name=dataset_name,
+        )
+        click.echo(f"Uploaded dataset '{result['dataset_name']}'")
+        click.echo(f"  Total items: {result['total_items']}")
+        click.echo(f"  Rows: {result['rows']}")
+        for w in result["weeks"]:
+            click.echo(
+                f"    {w['week_start']} → {w['week_end']}: {w['item_count']} items"
+            )
+    else:
+        from .datasets import upload_golden_week
 
-    click.echo(f"Uploaded dataset '{result['dataset_name']}'")
-    click.echo(f"  Items: {result['item_count']}")
-    click.echo(f"  Date range: {result['date_range']}")
-    click.echo(f"  Categories: {result['categories']}")
+        result = upload_golden_week(
+            since=since,
+            until=until,
+            dataset_name=dataset_name,
+        )
+        click.echo(f"Uploaded dataset '{result['dataset_name']}'")
+        click.echo(f"  Items: {result['item_count']}")
+        click.echo(f"  Date range: {result['date_range']}")
+        click.echo(f"  Categories: {result['categories']}")
 
 
 # ---------------------------------------------------------------------------

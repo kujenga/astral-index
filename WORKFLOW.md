@@ -211,6 +211,10 @@ uv sync --all-packages --extra braintrust
 uv run --package astral-eval astral-eval upload-dataset \
   --since 2026-03-01 --name golden-week
 
+# Or freeze multiple weeks as a multi-row dataset (one row per week)
+uv run --package astral-eval astral-eval upload-dataset \
+  --since 2026-02-17 --until 2026-03-10 --name golden-3week --multi-week
+
 # Push current hardcoded prompts to Braintrust as initial versions
 uv run --package astral-eval astral-eval seed-prompts
 ```
@@ -235,11 +239,16 @@ uv run --package astral-eval astral-eval experiment \
 
 ### Compare strategies
 
-Runs separate experiments per strategy and prints a side-by-side score table.
+Runs experiments in parallel for each strategy and prints a side-by-side score table. Available strategies: `baseline`, `headlines-only`, `wide-coverage`, `recency-biased`.
 
 ```bash
 uv run --package astral-eval astral-eval compare \
   baseline headlines-only --dataset golden-week
+
+# Compare all four strategies against a multi-week dataset (heuristic only)
+uv run --package astral-eval astral-eval compare \
+  baseline headlines-only wide-coverage recency-biased \
+  --dataset golden-3week --no-llm
 ```
 
 ### The iteration loop

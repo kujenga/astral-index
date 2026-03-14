@@ -41,14 +41,18 @@ _W_QUALITY = 0.10
 _HALF_LIFE_HOURS = 48.0
 
 
-def _recency_score(published_at: datetime | None, now: datetime) -> float:
+def _recency_score(
+    published_at: datetime | None,
+    now: datetime,
+    half_life_hours: float = _HALF_LIFE_HOURS,
+) -> float:
     """Exponential decay from publication time. Recent = closer to 1."""
     if published_at is None:
         return 0.3  # unknown date gets a neutral-low score
     age_hours = (now - published_at).total_seconds() / 3600
     if age_hours < 0:
         return 1.0  # future-dated items (rare) get max
-    return math.exp(-0.693 * age_hours / _HALF_LIFE_HOURS)
+    return math.exp(-0.693 * age_hours / half_life_hours)
 
 
 def _engagement_score(item: ContentItem) -> float:
@@ -94,7 +98,36 @@ _DEDUP_SIMILARITY_THRESHOLD = 0.7
 
 
 class EngagementRanker:
-    """Ranks items by a weighted heuristic score. No LLM calls."""
+    """Ranks items by a weighted heuristic score. No LLM calls.
+
+    Weights default to the module-level constants but can be overridden
+    to create strategy variants (e.g. recency-biased ranking).
+    """
+
+    def __init__(
+        self,
+        *,
+        w_recency: float = _W_RECENCY,
+        w_engagement: float = _W_ENGAGEMENT,
+        w_source: float = _W_SOURCE,
+        w_quality: float = _W_QUALITY,
+        half_life_hours: float = _HALF_LIFE_HOURS,
+    ) -> None:
+        self.w_recency = w_recency
+        self.w_engagement = w_engagement
+        self.w_source = w_source
+        self.w_quality = w_quality
+        self.half_life_hours = half_life_hours
+
+    def _score_item(self, item: ContentItem, now: datetime) -> float:
+        """Compute a 0-1 relevance score using instance weights."""
+        return (
+            self.w_recency
+            * _recency_score(item.published_at, now, self.half_life_hours)
+            + self.w_engagement * _engagement_score(item)
+            + self.w_source * _source_tier(item.source_name)
+            + self.w_quality * _quality_score(item)
+        )
 
     async def rank(
         self,
@@ -110,7 +143,7 @@ class EngagementRanker:
             # Defense-in-depth: also filter uncategorized low-quality items
             and not (not i.categories and _quality_score(i) < 0.3)
         ]
-        scored = [(item, score_item(item, now)) for item in on_topic]
+        scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
 
         # Semantic dedup: skip items too similar to an already-accepted item
