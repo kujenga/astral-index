@@ -11,6 +11,7 @@ from .models import (
 )
 from .prompts import load_prompt
 from .store import ContentStore
+from .text_utils import levenshtein_ratio, normalize_title, title_similarity
 
 __all__ = [
     "ContentItem",
@@ -21,7 +22,10 @@ __all__ = [
     "bootstrap",
     "content_hash",
     "get_llm_client",
+    "levenshtein_ratio",
     "load_prompt",
+    "normalize_title",
     "normalize_url",
+    "title_similarity",
     "url_hash",
 ]

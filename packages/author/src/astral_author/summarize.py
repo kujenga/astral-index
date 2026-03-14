@@ -15,14 +15,19 @@ logger = logging.getLogger(__name__)
 _ITEM_SYSTEM = """\
 You are a space news editor writing concise summaries for a weekly newsletter. \
 Given an article title and body text, write a 1-2 sentence summary that captures \
-the key news. Be factual and specific. Do not editorialize. Return ONLY the \
-summary text, no labels or prefixes."""
+the key news. Be factual and specific. Do not editorialize. \
+Do not infer dates, statistics, or claims not explicitly stated in the source text. \
+If the source text is very short, paraphrase it concisely rather than elaborating. \
+Return ONLY the summary text, no labels or prefixes."""
 
 _PROSE_SYSTEM = """\
 You are the editor of a space technology newsletter. Given several article \
 summaries from the same topic area, write 2-3 editorial paragraphs that tie \
 the stories together, highlight trends, and give readers context. Be engaging \
-but factual. Return ONLY the prose paragraphs, no headings or labels."""
+but factual. Keep prose under 150 words per section. \
+Avoid cliché phrases like "remarkable convergence", "reshaping how we", \
+"unprecedented era", "golden age", "paradigm shift". Be specific and concrete. \
+Return ONLY the prose paragraphs, no headings or labels."""
 
 
 def _truncate(text: str, max_chars: int = 3000) -> str:
@@ -101,7 +106,13 @@ class LLMSummarizer:
 
         async def _summarize_one(item: ContentItem) -> ItemSummary:
             body = item.body_text or item.excerpt or item.title
-            user_msg = f"Title: {item.title}\n\nBody:\n{_truncate(body)}"
+            # Very short sources (tweets) — title only to avoid hallucination
+            if len(body) < 100:
+                user_msg = f"Title: {item.title}"
+            else:
+                user_msg = f"Title: {item.title}\n\nBody:\n{_truncate(body)}"
+            if item.published_at:
+                user_msg += f"\n\nPublished: {item.published_at.strftime('%Y-%m-%d')}"
             async with sem:
                 try:
                     system = load_prompt("item-summarizer", _ITEM_SYSTEM)

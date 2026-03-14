@@ -38,9 +38,11 @@ class CategoryClusterer:
         *,
         max_deep_dives: int = 3,
         min_group_size: int = 2,
+        max_items_per_section: int = 12,
     ) -> None:
         self.max_deep_dives = max_deep_dives
         self.min_group_size = min_group_size
+        self.max_items_per_section = max_items_per_section
 
     async def cluster(
         self,
@@ -63,17 +65,22 @@ class CategoryClusterer:
         sections: list[NewsletterSection] = []
         brief_items: list[tuple[ContentItem, float]] = []
 
-        # Top N groups become deep-dive sections
+        # Top N groups become deep-dive sections; overflow excess items to brief
         for i, (cat, members) in enumerate(categorized):
             if i < self.max_deep_dives and len(members) >= self.min_group_size:
+                # Sort members by score descending so overflow drops lowest-scored
+                members.sort(key=lambda x: x[1], reverse=True)
+                keep = members[: self.max_items_per_section]
+                overflow = members[self.max_items_per_section :]
                 sections.append(
                     NewsletterSection(
                         heading=_HEADINGS.get(cat, cat.value.replace("_", " ").title()),
                         category=cat,
                         section_type=SectionType.DEEP_DIVE,
-                        source_items=[item.id for item, _ in members],
+                        source_items=[item.id for item, _ in keep],
                     )
                 )
+                brief_items.extend(overflow)
             else:
                 brief_items.extend(members)
 

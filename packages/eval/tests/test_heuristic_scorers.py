@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import pytest
+
 from astral_eval.scorers.heuristic import (
     category_coverage,
     link_count,
+    off_topic_leakage,
+    section_balance,
+    semantic_dedup,
     source_diversity,
 )
 from astral_eval.scores import Score
 
 
-def _items_section(items: list[dict]) -> dict:
+def _items_section(items: list[dict], **kwargs) -> dict:
     """Build a minimal section dict with ItemSummary-like dicts."""
-    return {"heading": "Test", "section_type": "brief", "items": items}
+    return {"heading": "Test", "section_type": "brief", "items": items, **kwargs}
 
 
-def _item(source_name: str, source_url: str = "https://example.com") -> dict:
+def _item(source_name: str, source_url: str = "https://example.com", **kwargs) -> dict:
     return {
         "item_id": "abc",
         "title": "Test",
@@ -23,6 +28,7 @@ def _item(source_name: str, source_url: str = "https://example.com") -> dict:
         "source_name": source_name,
         "summary": "Summary.",
         "relevance_score": 0.5,
+        **kwargs,
     }
 
 
@@ -31,7 +37,7 @@ def _item(source_name: str, source_url: str = "https://example.com") -> dict:
 
 class TestSourceDiversity:
     def test_uniform_five_sources(self):
-        """Five uniformly distributed sources → score ≈ 1.0."""
+        """Five uniformly distributed sources -> score ~= 1.0."""
         items = [_item(f"Source{i}") for i in range(5)]
         output = {"sections": [_items_section(items)]}
         result = source_diversity(output=output)
@@ -40,7 +46,7 @@ class TestSourceDiversity:
         assert result.score >= 0.99
 
     def test_single_source(self):
-        """All items from one source → low score."""
+        """All items from one source -> low score."""
         items = [_item("SpaceNews") for _ in range(5)]
         output = {"sections": [_items_section(items)]}
         result = source_diversity(output=output)
@@ -48,13 +54,13 @@ class TestSourceDiversity:
         assert result.score == pytest.approx(0.2, abs=0.01)
 
     def test_empty_output(self):
-        """No items → score 0.0."""
+        """No items -> score 0.0."""
         output = {"sections": []}
         result = source_diversity(output=output)
         assert result.score == 0.0
 
     def test_two_sources_unequal(self):
-        """Two sources with unequal distribution → between 0.2 and 1.0."""
+        """Two sources with unequal distribution -> between 0.2 and 1.0."""
         items = [_item("SpaceNews")] * 4 + [_item("Ars Technica")]
         output = {"sections": [_items_section(items)]}
         result = source_diversity(output=output)
@@ -76,7 +82,7 @@ class TestSourceDiversity:
 
 class TestCategoryCoverage:
     def test_full_coverage(self):
-        """All input categories represented in output → 1.0."""
+        """All input categories represented in output -> 1.0."""
         input_items = [
             {"categories": ["launch_vehicles"]},
             {"categories": ["space_science"]},
@@ -91,7 +97,7 @@ class TestCategoryCoverage:
         assert result.score == 1.0
 
     def test_half_coverage(self):
-        """Half of input categories covered → 0.5."""
+        """Half of input categories covered -> 0.5."""
         input_items = [
             {"categories": ["launch_vehicles"]},
             {"categories": ["space_science"]},
@@ -104,15 +110,45 @@ class TestCategoryCoverage:
         result = category_coverage(output=output, input=input_items)
         assert result.score == 0.5
 
+    def test_item_level_coverage(self):
+        """Items in a null-category section still count via item-level lookup."""
+        input_items = [
+            {"id": "item1", "categories": ["launch_vehicles"]},
+            {"id": "item2", "categories": ["space_science"]},
+            {"id": "item3", "categories": ["lunar"]},
+        ]
+        output = {
+            "sections": [
+                # Deep-dive section covers launch_vehicles at section level
+                {
+                    "heading": "Launch",
+                    "category": "launch_vehicles",
+                    "items": [{"item_id": "item1"}],
+                },
+                # Brief section has no category but contains items from other cats
+                {
+                    "heading": "In Brief",
+                    "category": None,
+                    "items": [
+                        {"item_id": "item2"},
+                        {"item_id": "item3"},
+                    ],
+                },
+            ]
+        }
+        result = category_coverage(output=output, input=input_items)
+        # All 3 categories should be covered via item-level matching
+        assert result.score == 1.0
+
     def test_no_input_categories(self):
-        """No categories in input → score 1.0 (nothing to cover)."""
+        """No categories in input -> score 1.0 (nothing to cover)."""
         input_items = [{"categories": []}, {"categories": []}]
         output = {"sections": []}
         result = category_coverage(output=output, input=input_items)
         assert result.score == 1.0
 
     def test_no_input_at_all(self):
-        """No input provided → score 1.0."""
+        """No input provided -> score 1.0."""
         output = {"sections": []}
         result = category_coverage(output=output, input=None)
         assert result.score == 1.0
@@ -120,19 +156,23 @@ class TestCategoryCoverage:
     def test_metadata_tracks_coverage(self):
         """Metadata reports input/output cat counts and missing."""
         input_items = [
-            {"categories": ["launch_vehicles", "lunar"]},
-            {"categories": ["space_science"]},
+            {"id": "i1", "categories": ["launch_vehicles", "lunar"]},
+            {"id": "i2", "categories": ["space_science"]},
         ]
         output = {
             "sections": [
-                {"heading": "Launch", "category": "launch_vehicles", "items": []},
+                {
+                    "heading": "Launch",
+                    "category": "launch_vehicles",
+                    "items": [{"item_id": "i1"}],
+                },
             ]
         }
         result = category_coverage(output=output, input=input_items)
+        # launch_vehicles covered (section) + lunar covered (item i1 has it)
         assert result.metadata["input_cats"] == 3
-        assert result.metadata["output_cats"] == 1
-        assert "lunar" in result.metadata["missing"]
         assert "space_science" in result.metadata["missing"]
+        assert "lunar" in result.metadata["covered"]
 
 
 # -- link_count --
@@ -140,7 +180,7 @@ class TestCategoryCoverage:
 
 class TestLinkCount:
     def test_links_per_item_above_one(self):
-        """More links than items → 1.0."""
+        """More links than items -> 1.0."""
         md = (
             "- [Article 1](https://example.com/1)\n"
             "- [Article 2](https://example.com/2)\n"
@@ -152,14 +192,14 @@ class TestLinkCount:
         assert result.metadata["links"] == 3
 
     def test_links_less_than_items(self):
-        """Fewer links than items → proportional score."""
+        """Fewer links than items -> proportional score."""
         md = "- [Article 1](https://example.com/1)\n"
         output = {"markdown": md, "total_output_items": 4}
         result = link_count(output=output)
         assert result.score == pytest.approx(0.25, abs=0.01)
 
     def test_no_items_still_scores(self):
-        """Zero total items → 1.0 (sanity: nothing to link)."""
+        """Zero total items -> 1.0 (sanity: nothing to link)."""
         output = {"markdown": "", "total_output_items": 0}
         result = link_count(output=output)
         assert result.score == 1.0
@@ -179,4 +219,143 @@ class TestLinkCount:
         assert result.metadata["ratio"] == 0.5
 
 
-import pytest  # noqa: E402 (used in approx assertions above)
+# -- section_balance --
+
+
+class TestSectionBalance:
+    def test_uniform_sections(self):
+        """Equal-sized sections -> high score."""
+        output = {
+            "sections": [
+                _items_section([_item("A")] * 5),
+                _items_section([_item("B")] * 5),
+                _items_section([_item("C")] * 5),
+            ]
+        }
+        result = section_balance(output=output)
+        assert result.score >= 0.95
+
+    def test_imbalanced_sections(self):
+        """Heavily imbalanced sections (27/7/10/4) -> low score."""
+        output = {
+            "sections": [
+                _items_section([_item("A")] * 27),
+                _items_section([_item("B")] * 7),
+                _items_section([_item("C")] * 10),
+                _items_section([_item("D")] * 4),
+            ]
+        }
+        result = section_balance(output=output)
+        # Should detect the oversized section and score low
+        assert result.score < 0.7
+        assert len(result.metadata["oversized"]) == 1
+        assert 27 in result.metadata["oversized"]
+
+    def test_single_section(self):
+        """One section -> 0.5 (can't measure balance)."""
+        output = {"sections": [_items_section([_item("A")] * 10)]}
+        result = section_balance(output=output)
+        assert result.score == 0.5
+
+    def test_empty_sections(self):
+        """No sections -> 1.0."""
+        output = {"sections": []}
+        result = section_balance(output=output)
+        assert result.score == 1.0
+
+
+# -- semantic_dedup --
+
+
+class TestSemanticDedup:
+    def test_no_duplicates(self):
+        """All unique titles -> 1.0."""
+        items = [
+            _item("A", title="SpaceX launches Starship"),
+            _item("B", title="NASA Artemis III delay announced"),
+            _item("C", title="JWST discovers new exoplanet"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = semantic_dedup(output=output)
+        assert result.score == 1.0
+
+    def test_near_duplicate_titles(self):
+        """Near-duplicate titles -> penalty applied."""
+        items = [
+            _item("A", title="Watch the Starlink launch live"),
+            _item("B", title="Watch the Starlink launch!"),
+            _item("C", title="JWST discovers new exoplanet"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = semantic_dedup(output=output)
+        assert result.score < 1.0
+        assert result.metadata["n_duplicates"] >= 1
+
+    def test_identical_titles(self):
+        """Identical titles -> clear duplicate."""
+        items = [
+            _item("A", title="Starlink deployment confirmed"),
+            _item("B", title="Starlink deployment confirmed"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = semantic_dedup(output=output)
+        assert result.score <= 0.8
+
+    def test_single_item(self):
+        """Single item -> 1.0 (nothing to compare)."""
+        output = {"sections": [_items_section([_item("A", title="Solo article")])]}
+        result = semantic_dedup(output=output)
+        assert result.score == 1.0
+
+
+# -- off_topic_leakage --
+
+
+class TestOffTopicLeakage:
+    def test_all_categorized(self):
+        """All items have categories -> 1.0."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+            {"id": "a2", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1"),
+            _item("B", item_id="a2"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 1.0
+
+    def test_some_uncategorized(self):
+        """Mix of categorized and uncategorized -> proportional score."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+            {"id": "a2", "categories": []},
+        ]
+        items = [
+            _item("A", item_id="a1"),
+            _item("B", item_id="a2"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.5
+
+    def test_off_topic_items(self):
+        """Items with off_topic category count as off-topic."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+            {"id": "a2", "categories": ["off_topic"]},
+        ]
+        items = [
+            _item("A", item_id="a1"),
+            _item("B", item_id="a2"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.5
+
+    def test_empty_output(self):
+        """No output items -> 1.0."""
+        output = {"sections": []}
+        result = off_topic_leakage(output=output)
+        assert result.score == 1.0

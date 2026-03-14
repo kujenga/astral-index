@@ -48,7 +48,14 @@ def wrap_scorer(scorer: Callable[..., Any], *, name: str | None = None) -> Calla
 
 def _make_all() -> dict[str, Callable]:
     """Build wrapped versions of all scorers, imported lazily to avoid cycles."""
-    from .scorers.heuristic import category_coverage, link_count, source_diversity
+    from .scorers.heuristic import (
+        category_coverage,
+        link_count,
+        off_topic_leakage,
+        section_balance,
+        semantic_dedup,
+        source_diversity,
+    )
     from .scorers.llm_judges import (
         coherence_flow,
         coverage_adequacy,
@@ -61,6 +68,9 @@ def _make_all() -> dict[str, Callable]:
         source_diversity,
         category_coverage,
         link_count,
+        section_balance,
+        semantic_dedup,
+        off_topic_leakage,
         editorial_quality,
         coverage_adequacy,
         readability_fit,
@@ -76,13 +86,23 @@ _ALL = _make_all()
 bt_source_diversity = _ALL["bt_source_diversity"]
 bt_category_coverage = _ALL["bt_category_coverage"]
 bt_link_count = _ALL["bt_link_count"]
+bt_section_balance = _ALL["bt_section_balance"]
+bt_semantic_dedup = _ALL["bt_semantic_dedup"]
+bt_off_topic_leakage = _ALL["bt_off_topic_leakage"]
 bt_editorial_quality = _ALL["bt_editorial_quality"]
 bt_coverage_adequacy = _ALL["bt_coverage_adequacy"]
 bt_readability_fit = _ALL["bt_readability_fit"]
 bt_link_quality = _ALL["bt_link_quality"]
 bt_coherence_flow = _ALL["bt_coherence_flow"]
 
-HEURISTIC_BT_SCORERS = [bt_source_diversity, bt_category_coverage, bt_link_count]
+HEURISTIC_BT_SCORERS = [
+    bt_source_diversity,
+    bt_category_coverage,
+    bt_link_count,
+    bt_section_balance,
+    bt_semantic_dedup,
+    bt_off_topic_leakage,
+]
 LLM_BT_SCORERS = [
     bt_editorial_quality,
     bt_coverage_adequacy,

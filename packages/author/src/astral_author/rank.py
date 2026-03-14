@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 
-from astral_core import ContentItem, SpaceCategory
+from astral_core import ContentItem, SpaceCategory, title_similarity
 
 # Source quality tiers (0-1). Unlisted sources get DEFAULT_TIER.
 _SOURCE_TIERS: dict[str, float] = {
@@ -90,6 +90,9 @@ def score_item(item: ContentItem, now: datetime | None = None) -> float:
     )
 
 
+_DEDUP_SIMILARITY_THRESHOLD = 0.7
+
+
 class EngagementRanker:
     """Ranks items by a weighted heuristic score. No LLM calls."""
 
@@ -100,7 +103,26 @@ class EngagementRanker:
         max_items: int = 50,
     ) -> list[tuple[ContentItem, float]]:
         now = datetime.now(UTC)
-        on_topic = [i for i in items if SpaceCategory.OFF_TOPIC not in i.categories]
+        on_topic = [
+            i
+            for i in items
+            if SpaceCategory.OFF_TOPIC not in i.categories
+            # Defense-in-depth: also filter uncategorized low-quality items
+            and not (not i.categories and _quality_score(i) < 0.3)
+        ]
         scored = [(item, score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:max_items]
+
+        # Semantic dedup: skip items too similar to an already-accepted item
+        accepted: list[tuple[ContentItem, float]] = []
+        for item, s in scored:
+            if any(
+                title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
+                for a, _ in accepted
+            ):
+                continue
+            accepted.append((item, s))
+            if len(accepted) >= max_items:
+                break
+
+        return accepted

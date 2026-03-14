@@ -9,7 +9,14 @@ from typing import Any
 from astral_author.models import NewsletterDraft
 from astral_core import ContentItem
 
-from .scorers.heuristic import category_coverage, link_count, source_diversity
+from .scorers.heuristic import (
+    category_coverage,
+    link_count,
+    off_topic_leakage,
+    section_balance,
+    semantic_dedup,
+    source_diversity,
+)
 from .scorers.llm_judges import (
     coherence_flow,
     coverage_adequacy,
@@ -19,7 +26,14 @@ from .scorers.llm_judges import (
 )
 from .scores import Score
 
-HEURISTIC_SCORERS = [source_diversity, category_coverage, link_count]
+HEURISTIC_SCORERS = [
+    source_diversity,
+    category_coverage,
+    link_count,
+    section_balance,
+    semantic_dedup,
+    off_topic_leakage,
+]
 LLM_SCORERS = [
     editorial_quality,
     coverage_adequacy,

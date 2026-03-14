@@ -8,7 +8,18 @@ from astral_core.scoring import (
     Score,
     category_coverage,
     link_count,
+    off_topic_leakage,
+    section_balance,
+    semantic_dedup,
     source_diversity,
 )
 
-__all__ = ["Score", "category_coverage", "link_count", "source_diversity"]
+__all__ = [
+    "Score",
+    "category_coverage",
+    "link_count",
+    "off_topic_leakage",
+    "section_balance",
+    "semantic_dedup",
+    "source_diversity",
+]
