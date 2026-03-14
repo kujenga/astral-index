@@ -307,6 +307,28 @@ class TestSemanticDedup:
         result = semantic_dedup(output=output)
         assert result.score == 1.0
 
+    def test_same_event_different_wording(self):
+        """Same event described differently -> flagged via token Jaccard."""
+        items = [
+            _item("A", title="Falcon 9 launches Starlink Group 12 mission"),
+            _item("B", title="Starlink Group 12 deployment after Falcon 9 launch"),
+            _item("C", title="JWST discovers new exoplanet"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = semantic_dedup(output=output)
+        assert result.score < 1.0
+        assert result.metadata["n_duplicates"] >= 1
+
+    def test_different_stories_same_domain_not_flagged(self):
+        """Different events sharing domain words -> NOT flagged."""
+        items = [
+            _item("A", title="SpaceX launches crew to ISS"),
+            _item("B", title="SpaceX Starship completes orbital test"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = semantic_dedup(output=output)
+        assert result.score == 1.0
+
 
 # -- off_topic_leakage --
 
@@ -358,4 +380,31 @@ class TestOffTopicLeakage:
         """No output items -> 1.0."""
         output = {"sections": []}
         result = off_topic_leakage(output=output)
+        assert result.score == 1.0
+
+    def test_non_journalism_title_flagged(self):
+        """Item has categories but title matches non-journalism pattern -> off-topic."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+            {"id": "a2", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="SpaceX launches Starship"),
+            _item("B", item_id="a2", title="Best AI games to play this weekend"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.5
+        assert result.metadata["off_topic"] == 1
+
+    def test_normal_title_not_flagged(self):
+        """Normal space news title with categories -> not flagged."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="SpaceX launches Starship"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
         assert result.score == 1.0

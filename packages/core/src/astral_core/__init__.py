@@ -11,9 +11,15 @@ from .models import (
 )
 from .prompts import load_prompt
 from .store import ContentStore
-from .text_utils import levenshtein_ratio, normalize_title, title_similarity
+from .text_utils import (
+    NON_JOURNALISM_RE,
+    levenshtein_ratio,
+    normalize_title,
+    title_similarity,
+)
 
 __all__ = [
+    "NON_JOURNALISM_RE",
     "ContentItem",
     "ContentStore",
     "ContentType",

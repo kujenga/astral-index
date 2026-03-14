@@ -16,7 +16,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from .text_utils import title_similarity
+from .text_utils import NON_JOURNALISM_RE, title_similarity
 
 
 @dataclass
@@ -214,12 +214,14 @@ def semantic_dedup(
     *,
     output: dict[str, Any],
     input: list[dict[str, Any]] | None = None,
-    similarity_threshold: float = 0.7,
+    similarity_threshold: float = 0.5,
     **kwargs: Any,
 ) -> Score:
     """Pairwise title similarity across output items, penalizing near-duplicates.
 
-    Compares all pairs of output item titles using Levenshtein similarity.
+    Compares all pairs of output item titles using combined Levenshtein + token
+    Jaccard similarity. Threshold is 0.5 to catch both near-identical titles
+    (high Levenshtein) and same-event titles with different wording (high Jaccard).
     Each duplicate pair deducts 0.2 from 1.0.
     """
     titles: list[str] = []
@@ -286,7 +288,8 @@ def off_topic_leakage(
             total += 1
             item_id = item.get("item_id")
             cats = input_item_cats.get(item_id, []) if item_id else []
-            if not cats or "off_topic" in cats:
+            title = item.get("title", "")
+            if not cats or "off_topic" in cats or NON_JOURNALISM_RE.search(title):
                 off_topic_count += 1
                 off_topic_titles.append(item.get("title", "?")[:60])
 

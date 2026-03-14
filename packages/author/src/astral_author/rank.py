@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 
-from astral_core import ContentItem, SpaceCategory, title_similarity
+from astral_core import NON_JOURNALISM_RE, ContentItem, SpaceCategory, title_similarity
 
 # Source quality tiers (0-1). Unlisted sources get DEFAULT_TIER.
 _SOURCE_TIERS: dict[str, float] = {
@@ -142,6 +142,8 @@ class EngagementRanker:
             if SpaceCategory.OFF_TOPIC not in i.categories
             # Defense-in-depth: also filter uncategorized low-quality items
             and not (not i.categories and _quality_score(i) < 0.3)
+            # Block non-journalism content (games, puzzles) that slipped past classifier
+            and not NON_JOURNALISM_RE.search(i.title)
         ]
         scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
