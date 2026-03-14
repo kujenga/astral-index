@@ -94,7 +94,7 @@ def score_item(item: ContentItem, now: datetime | None = None) -> float:
     )
 
 
-_DEDUP_SIMILARITY_THRESHOLD = 0.7
+_DEDUP_SIMILARITY_THRESHOLD = 0.5
 
 
 class EngagementRanker:
