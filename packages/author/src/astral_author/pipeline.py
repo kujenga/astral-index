@@ -107,7 +107,7 @@ def _build_baseline() -> DraftPipeline:
     return DraftPipeline(
         name="baseline",
         ranker=EngagementRanker(),
-        clusterer=CategoryClusterer(max_deep_dives=5, max_items_per_section=5),
+        clusterer=CategoryClusterer(max_deep_dives=5, max_items_per_section=6),
         summarizer=LLMSummarizer(),
         drafter=MarkdownDrafter(),
     )
