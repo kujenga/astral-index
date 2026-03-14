@@ -258,6 +258,12 @@ Meta-quality check: generates a test draft, runs all scorers, then independently
 
 Read-only analysis: examines source coverage, pipeline stages, strategy configs, and eval gaps. Proposes new sources, pipeline improvements, strategies, and scorers — prioritized by impact and effort. Output feeds into `/iterate` as actionable targets.
 
+### `/autoiterate` — Autonomous Quality Loop
+
+Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Targets a scorer, loops: ideate → modify → experiment → keep/revert. No human confirmation gates — runs until interrupted or bounded via `/loop N /autoiterate`. Each iteration is atomic (commit before verify, revert on regression). Results logged to `data/eval/autoiterate_log.md`.
+
+**Parallel mode (agent teams):** See `.claude/skills/autoiterate/TEAM.md` for a ready-to-paste prompt that spawns 3 teammates in git worktrees, each trying a different approach. The lead merges the winner each generation. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (set in `.claude/settings.json`).
+
 ### Skill composition
 
 ```
@@ -265,6 +271,9 @@ Read-only analysis: examines source coverage, pipeline stages, strategy configs,
                               ^                            |
                               |                            |
 /audit-eval ──(scorer fixes)──┘       (low scores) ───────┘
+
+/autoiterate ── autonomous loop (serial or parallel via agent teams)
+     └── targets one scorer at a time, chains improvements
 ```
 
 ## Keeping docs current
