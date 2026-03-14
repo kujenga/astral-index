@@ -160,4 +160,22 @@ class EngagementRanker:
             if len(accepted) >= max_items:
                 break
 
+        # Category floor: ensure at least one item per category is represented.
+        # Walk the remaining scored items and add the top-scoring item from any
+        # category not yet present in the accepted list.
+        accepted_ids = {item.id for item, _ in accepted}
+        covered_cats: set[SpaceCategory] = set()
+        for item, _ in accepted:
+            for cat in item.categories:
+                covered_cats.add(cat)
+
+        for item, s in scored:
+            if item.id in accepted_ids:
+                continue
+            item_cats = {c for c in item.categories if c != SpaceCategory.OFF_TOPIC}
+            if item_cats and not item_cats.issubset(covered_cats):
+                accepted.append((item, s))
+                accepted_ids.add(item.id)
+                covered_cats.update(item_cats)
+
         return accepted
