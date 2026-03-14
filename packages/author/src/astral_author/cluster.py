@@ -87,8 +87,26 @@ class CategoryClusterer:
         # Uncategorized items go to brief
         brief_items.extend(groups.get(None, []))
 
-        # Sort brief items by score descending
+        # Sort brief items by score descending and cap size while preserving
+        # category diversity — keep at least one item per category.
         brief_items.sort(key=lambda x: x[1], reverse=True)
+        if len(brief_items) > self.max_items_per_section:
+            kept: list[tuple[ContentItem, float]] = []
+            seen_cats: set[SpaceCategory] = set()
+            # First pass: guarantee one item per unseen category
+            for item, score in brief_items:
+                item_cats = set(item.categories) - seen_cats
+                if item_cats:
+                    kept.append((item, score))
+                    seen_cats.update(item.categories)
+            # Second pass: fill remaining slots by score
+            kept_ids = {item.id for item, _ in kept}
+            for item, score in brief_items:
+                if len(kept) >= self.max_items_per_section:
+                    break
+                if item.id not in kept_ids:
+                    kept.append((item, score))
+            brief_items = kept
 
         if brief_items:
             sections.append(
