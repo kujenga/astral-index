@@ -173,15 +173,19 @@ class EngagementRanker:
             if item.id in accepted_ids:
                 continue
             item_cats = {c for c in item.categories if c != SpaceCategory.OFF_TOPIC}
-            if item_cats and not item_cats.issubset(covered_cats):
-                # Still enforce dedup for category-floor items
-                if any(
-                    title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
-                    for a, _ in accepted
-                ):
-                    continue
-                accepted.append((item, s))
-                accepted_ids.add(item.id)
-                covered_cats.update(item_cats)
+            if not item_cats or item_cats.issubset(covered_cats):
+                continue
+            # Enforce dedup unless this item is the sole representative of
+            # an entirely uncovered category — category diversity takes priority
+            new_cats = item_cats - covered_cats
+            all_new = new_cats == item_cats
+            if not all_new and any(
+                title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
+                for a, _ in accepted
+            ):
+                continue
+            accepted.append((item, s))
+            accepted_ids.add(item.id)
+            covered_cats.update(item_cats)
 
         return accepted
