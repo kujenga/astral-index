@@ -10,7 +10,6 @@ Weighted combination of four signals (all 0-1 normalized):
 from __future__ import annotations
 
 import math
-from collections import Counter
 from datetime import UTC, datetime
 
 from astral_core import NON_JOURNALISM_RE, ContentItem, SpaceCategory, title_similarity
@@ -149,21 +148,15 @@ class EngagementRanker:
         scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
 
-        # Semantic dedup + per-source cap for diversity
+        # Semantic dedup: skip items too similar to an already-accepted item
         accepted: list[tuple[ContentItem, float]] = []
-        source_counts: Counter[str] = Counter()
-        # Cap any single source at 20% of max_items (min 3)
-        max_per_source = max(3, max_items // 5)
         for item, s in scored:
-            if source_counts[item.source_name] >= max_per_source:
-                continue
             if any(
                 title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
                 for a, _ in accepted
             ):
                 continue
             accepted.append((item, s))
-            source_counts[item.source_name] += 1
             if len(accepted) >= max_items:
                 break
 
