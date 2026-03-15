@@ -174,10 +174,10 @@ class EngagementRanker:
                 continue
             item_cats = {c for c in item.categories if c != SpaceCategory.OFF_TOPIC}
             if item_cats and not item_cats.issubset(covered_cats):
-                # Still enforce dedup for category-floor items
+                # Enforce dedup for category-floor items, but with a more
+                # lenient threshold so we don't lose category coverage
                 if any(
-                    title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
-                    for a, _ in accepted
+                    title_similarity(item.title, a.title) >= 0.7 for a, _ in accepted
                 ):
                     continue
                 accepted.append((item, s))
