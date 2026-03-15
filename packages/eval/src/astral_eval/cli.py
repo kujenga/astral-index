@@ -253,6 +253,16 @@ async def _experiment(
     # Load local items (needed even with dataset, for item count display)
     items: list = []
     if not dataset_name:
+        # Warn about unlinked experiments when Braintrust is available
+        import os
+
+        if os.environ.get("BRAINTRUST_API_KEY"):
+            click.secho(
+                "WARNING: Running without --dataset. Results will be unlinked. "
+                "Use --dataset golden-standard for reproducible iteration.",
+                fg="yellow",
+                err=True,
+            )
         store = ContentStore()
         items = store.list_items(since=since)
         if not items:
@@ -485,6 +495,33 @@ def upload_dataset(
         click.echo(f"  Items: {result['item_count']}")
         click.echo(f"  Date range: {result['date_range']}")
         click.echo(f"  Categories: {result['categories']}")
+
+
+# ---------------------------------------------------------------------------
+# setup-datasets command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("setup-datasets")
+@click.option(
+    "--dry-run", is_flag=True, help="Show planned uploads without creating datasets."
+)
+def setup_datasets_cmd(dry_run: bool) -> None:
+    """Create standard dataset tiers (smoke, standard, full) in Braintrust."""
+    from .datasets import STANDARD_DATASETS, setup_standard_datasets
+
+    if dry_run:
+        click.echo("Dry run — would create:")
+        for name, windows in STANDARD_DATASETS.items():
+            click.echo(f"  {name}: {len(windows)} rows from {', '.join(windows)}")
+        click.echo()
+
+    uploaded = setup_standard_datasets(dry_run=dry_run)
+
+    if not dry_run:
+        click.echo("Created datasets:")
+        for name in uploaded:
+            click.echo(f"  {name}")
 
 
 # ---------------------------------------------------------------------------

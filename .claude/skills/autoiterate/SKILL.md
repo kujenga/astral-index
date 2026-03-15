@@ -49,7 +49,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 - If omitted, loops forever (or N times via `/loop N`)
 
 ### Other options
-- `--dataset NAME` — Braintrust dataset (default: `golden-week`)
+- `--dataset NAME` — Braintrust dataset (default: `golden-standard`)
 - `--llm` — include LLM judges (slower, more expensive, non-deterministic)
 - `--strategy NAME` — strategy to optimize (default: `baseline`)
 - Free-text improvement goal — interpreted as context for ideation
@@ -97,6 +97,8 @@ uv run --package astral-eval astral-eval experiment \
 ```
 
 Parse ALL scores. Record as iteration #0. In sweep mode, rank scorers low-to-high — the lowest becomes the first target.
+
+If the experiment fails because the dataset is empty or missing, run `uv run --package astral-eval astral-eval setup-datasets` to create the standard datasets, then retry.
 
 ### 4. Check finish condition
 

@@ -5,7 +5,7 @@ This is a reference prompt for running autoiterate in parallel mode using Claude
 ## Prerequisites
 
 1. Agent teams enabled: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set in settings or env
-2. Golden dataset uploaded: `uv run --package astral-eval astral-eval upload-dataset --since {date} --name golden-week`
+2. Golden dataset uploaded: `uv run --package astral-eval astral-eval upload-dataset --since {date} --name golden-standard`
 3. Familiarity with `/autoiterate` (serial mode) — the teammates follow the same protocol
 
 ## Team Prompt
@@ -21,14 +21,14 @@ Create an agent team to optimize newsletter quality through parallel experimenta
 
 This is Astral Index, a space tech newsletter. The pipeline (rank → cluster → summarize → draft) lives in packages/author/src/astral_author/. Quality is measured by heuristic scorers via:
 
-  uv run --package astral-eval astral-eval experiment --dataset golden-week --strategy baseline --no-llm
+  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
 
 Read .claude/skills/autoiterate/SKILL.md for the full iteration protocol.
 
 ## Target
 
 Optimize: {TARGET_SCORER}  (e.g., source_diversity, category_coverage, section_balance)
-Dataset: golden-week
+Dataset: golden-standard
 Strategy: baseline
 
 ## Team structure
@@ -52,7 +52,7 @@ Strategy: baseline
 3. Implement the assigned change (ONLY files in packages/author/src/astral_author/)
 4. Run: uv run pre-commit run --all-files
 5. Commit with message: "autoiterate(team): {description}"
-6. Run: uv run --package astral-eval astral-eval experiment --dataset golden-week --strategy baseline --no-llm
+6. Run: uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
 7. Parse the target scorer value and overall average
 8. Message the lead: "Done. {target_scorer}={value}, avg={value}. Branch: autoiterate/{name}"
 9. git worktree remove /tmp/autoiterate-{your-name}
@@ -68,7 +68,7 @@ Strategy: baseline
 ## Start
 
 First, establish baseline:
-  uv run --package astral-eval astral-eval experiment --dataset golden-week --strategy baseline --no-llm
+  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
 
 Read the scorer implementations, then begin generation 1.
 ```
@@ -111,7 +111,7 @@ The lead maintains `data/eval/autoiterate_log.md` in this format:
 ```markdown
 # Autoiterate Results Log
 Target: source_diversity
-Dataset: golden-week
+Dataset: golden-standard
 Strategy: baseline
 Started: 2026-03-14T10:00:00
 

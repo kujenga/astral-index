@@ -207,34 +207,36 @@ Braintrust enables reproducible evaluation: freeze a dataset, change code or pro
 # Install Braintrust extras
 uv sync --all-packages --extra braintrust
 
-# Freeze a week of data as a golden dataset
-uv run --package astral-eval astral-eval upload-dataset \
-  --since 2026-03-01 --name golden-week
-
-# Or freeze multiple weeks as a multi-row dataset (one row per week)
-uv run --package astral-eval astral-eval upload-dataset \
-  --since 2026-02-17 --until 2026-03-10 --name golden-3week --multi-week
+# Create the standard dataset tiers (smoke, standard, full)
+uv run --package astral-eval astral-eval setup-datasets
 
 # Push current hardcoded prompts to Braintrust as initial versions
 uv run --package astral-eval astral-eval seed-prompts
 ```
+
+Three standard dataset tiers are available:
+- **`golden-smoke`** (1 row) — fast sanity check during rapid iteration (~5s)
+- **`golden-standard`** (4 rows) — default for `/iterate` and `/autoiterate`
+- **`golden-full`** (8 rows) — comprehensive regression testing, CI
+
+**Dataset-first rule:** Quality iteration (experiments, `/iterate`, `/autoiterate`) should always use `--dataset` for linked, reproducible results. Operational use (`/publish`) uses `--since` for live data.
 
 ### Run an experiment
 
 Each experiment generates a draft from the frozen dataset, scores it, and logs everything to Braintrust for comparison.
 
 ```bash
-# Run against the golden dataset
+# Run against the standard dataset (recommended for iteration)
 uv run --package astral-eval astral-eval experiment \
-  --dataset golden-week --strategy baseline
+  --dataset golden-standard --strategy baseline
 
-# Or against live data
+# Or against live data (for operational use — warns about unlinked results)
 uv run --package astral-eval astral-eval experiment \
   --since 7 --strategy baseline
 
 # Heuristic scorers only (no LLM cost)
 uv run --package astral-eval astral-eval experiment \
-  --dataset golden-week --strategy baseline --no-llm
+  --dataset golden-standard --strategy baseline --no-llm
 ```
 
 ### Compare strategies
@@ -243,12 +245,12 @@ Runs experiments in parallel for each strategy and prints a side-by-side score t
 
 ```bash
 uv run --package astral-eval astral-eval compare \
-  baseline headlines-only --dataset golden-week
+  baseline headlines-only --dataset golden-standard
 
-# Compare all four strategies against a multi-week dataset (heuristic only)
+# Compare all four strategies against the full dataset (heuristic only)
 uv run --package astral-eval astral-eval compare \
   baseline headlines-only wide-coverage recency-biased \
-  --dataset golden-3week --no-llm
+  --dataset golden-full --no-llm
 ```
 
 ### The iteration loop

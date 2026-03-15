@@ -24,11 +24,11 @@ You are running the Astral Index quality improvement loop. Your job is to diagno
 
 `$ARGUMENTS` may contain:
 - A scorer name to target (e.g., `source_diversity`, `category_coverage`, `editorial_quality`)
-- A dataset name (e.g., `golden-week`, `golden-3week`)
+- A dataset name (e.g., `golden-standard`, `golden-full`, `golden-smoke`)
 - `--llm` to include LLM judges in the experiment
 - A free-text improvement goal
 
-Defaults: dataset = `golden-week`, target = lowest scorer, no LLM judges.
+Defaults: dataset = `golden-standard`, target = lowest scorer, no LLM judges.
 
 ## Step 1: Establish Baseline
 
@@ -143,4 +143,5 @@ Based on results:
 - Each iteration should be atomic: one commit on success, clean revert on failure.
 - Multiple `/iterate` runs can be chained — each builds on the last commit.
 - Always run pre-commit before committing.
-- If the experiment command fails, read the error carefully. Common issues: missing dataset (run `upload-dataset` first), missing API key, import errors from code changes.
+- If the experiment command fails because the dataset is empty or missing, run `uv run --package astral-eval astral-eval setup-datasets` to create the standard datasets, then retry.
+- If the experiment command fails for other reasons, read the error carefully. Common issues: missing API key, import errors from code changes.

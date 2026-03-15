@@ -1,19 +1,167 @@
-"""Golden-week dataset management for reproducible Braintrust experiments.
+"""Golden dataset management for reproducible Braintrust experiments.
 
 Upload frozen sets of ContentItems to Braintrust as named datasets, enabling
 consistent regression testing across pipeline changes.
+
+Standard dataset tiers:
+  - golden-smoke    (1 row)  — fast sanity check (~5s)
+  - golden-standard (4 rows) — default for /iterate and /autoiterate
+  - golden-full     (8 rows) — comprehensive regression testing, CI
 """
 
 from __future__ import annotations
 
 import logging
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from astral_core import ContentItem, ContentStore
 
 logger = logging.getLogger(__name__)
+
+# Curated date windows for standard datasets.
+# 2025 data is sparse (~5 items/date) → 14-day windows.
+# 2026 data is dense (~50 items/day) → 7-day windows.
+_WINDOWS: dict[str, tuple[str, str]] = {
+    "2025-Q1": ("2025-02-03", "2025-02-17"),
+    "2025-Q2": ("2025-05-05", "2025-05-19"),
+    "2025-Q3": ("2025-09-08", "2025-09-22"),
+    "2025-Q4": ("2025-11-10", "2025-11-24"),
+    "2026-Jan": ("2026-01-19", "2026-01-26"),
+    "2026-Feb-early": ("2026-02-09", "2026-02-16"),
+    "2026-Feb-late": ("2026-02-23", "2026-03-02"),
+    "2026-Mar": ("2026-03-02", "2026-03-09"),
+}
+
+STANDARD_DATASETS: dict[str, list[str]] = {
+    "golden-smoke": ["2025-Q4"],
+    "golden-standard": ["2025-Q3", "2025-Q4", "2026-Feb-early", "2026-Feb-late"],
+    "golden-full": list(_WINDOWS.keys()),
+}
+
+
+def _window_to_datetimes(key: str) -> tuple[datetime, datetime]:
+    """Convert a window key to (since, until) UTC datetimes."""
+    start_str, end_str = _WINDOWS[key]
+    since = datetime.fromisoformat(start_str).replace(tzinfo=UTC)
+    until = datetime.fromisoformat(end_str).replace(tzinfo=UTC)
+    return since, until
+
+
+def _list_items_by_date_dir(
+    base_dir: str, since: datetime, until: datetime
+) -> list[ContentItem]:
+    """Load items whose directory date falls within [since, until).
+
+    Unlike ``ContentStore.list_items`` (which filters on ``scraped_at``),
+    this filters on the directory name — matching ``published_at`` — so it
+    works for historical data scraped after the fact.
+    """
+    import json
+    from pathlib import Path
+
+    items_dir = Path(base_dir) / "items"
+    if not items_dir.exists():
+        return []
+
+    since_str = since.strftime("%Y-%m-%d")
+    until_str = until.strftime("%Y-%m-%d")
+    results: list[ContentItem] = []
+
+    for date_dir in sorted(items_dir.iterdir()):
+        if not date_dir.is_dir():
+            continue
+        dir_date = date_dir.name
+        if dir_date < since_str or dir_date >= until_str:
+            continue
+        for path in date_dir.glob("*.json"):
+            item = ContentItem.model_validate(json.loads(path.read_text()))
+            results.append(item)
+
+    return results
+
+
+def setup_standard_datasets(
+    *, dry_run: bool = False, base_dir: str = "data"
+) -> list[str]:
+    """Create all standard dataset tiers in Braintrust.
+
+    Uses directory-date filtering (published_at) rather than scraped_at,
+    so historical data scraped retroactively is included correctly.
+
+    Returns the list of dataset names that were uploaded.
+    """
+    if not dry_run:
+        try:
+            import braintrust
+        except ImportError:
+            logger.warning(
+                "braintrust package not installed — cannot upload datasets. "
+                "Install with: uv sync --all-packages --extra braintrust"
+            )
+            raise SystemExit(1) from None
+
+        import os
+
+        if not os.environ.get("BRAINTRUST_API_KEY"):
+            logger.warning("BRAINTRUST_API_KEY not set — cannot upload datasets.")
+            raise SystemExit(1)
+
+    uploaded: list[str] = []
+    for name, window_keys in STANDARD_DATASETS.items():
+        weeks = [_window_to_datetimes(k) for k in window_keys]
+        if dry_run:
+            logger.info(
+                "Would upload %s: %d rows from windows %s",
+                name,
+                len(weeks),
+                ", ".join(window_keys),
+            )
+            uploaded.append(name)
+            continue
+
+        dataset = braintrust.init_dataset(project="astral-index", name=name)
+        total_items = 0
+        rows = 0
+
+        for week_start, week_end in weeks:
+            items = _list_items_by_date_dir(base_dir, week_start, week_end)
+            if not items:
+                logger.warning(
+                    "No items for window %s → %s, skipping",
+                    week_start.strftime("%Y-%m-%d"),
+                    week_end.strftime("%Y-%m-%d"),
+                )
+                continue
+
+            cat_counts: Counter[str] = Counter()
+            for item in items:
+                for cat in item.categories:
+                    cat_counts[cat] += 1
+
+            input_data = [item.model_dump(mode="json") for item in items]
+            dataset.insert(
+                input=input_data,
+                metadata={
+                    "week_start": week_start.strftime("%Y-%m-%d"),
+                    "week_end": week_end.strftime("%Y-%m-%d"),
+                    "item_count": len(items),
+                    "categories": dict(cat_counts),
+                },
+            )
+            total_items += len(items)
+            rows += 1
+
+        if rows == 0:
+            logger.warning("No items found for dataset %s — skipping", name)
+            continue
+
+        dataset.flush()
+        logger.info("Uploaded %s: %d rows, %d total items", name, rows, total_items)
+        uploaded.append(name)
+
+    return uploaded
 
 
 def upload_golden_week(
