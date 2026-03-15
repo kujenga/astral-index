@@ -161,8 +161,6 @@ class EngagementRanker:
                 break
 
         # Category floor: ensure at least one item per category is represented.
-        # Walk the remaining scored items and add the top-scoring item from any
-        # category not yet present in the accepted list.
         accepted_ids = {item.id for item, _ in accepted}
         covered_cats: set[SpaceCategory] = set()
         for item, _ in accepted:
@@ -177,5 +175,15 @@ class EngagementRanker:
                 accepted.append((item, s))
                 accepted_ids.add(item.id)
                 covered_cats.update(item_cats)
+
+        # Source floor: ensure at least one item per source is represented.
+        covered_sources = {item.source_name for item, _ in accepted}
+        for item, s in scored:
+            if item.id in accepted_ids:
+                continue
+            if item.source_name not in covered_sources:
+                accepted.append((item, s))
+                accepted_ids.add(item.id)
+                covered_sources.add(item.source_name)
 
         return accepted
