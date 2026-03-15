@@ -116,6 +116,8 @@ Highlight:
 - Any regressions > 0.05 on other scorers
 - Overall average change
 
+**Noise floor:** Heuristic scorers are deterministic — any delta is real. LLM judges have a noise floor of ~0.15 (one grade flip on one dataset row). Flag LLM judge deltas < 0.15 as potentially noise when presenting results.
+
 ## Step 7: Keep or Revert
 
 Based on results:

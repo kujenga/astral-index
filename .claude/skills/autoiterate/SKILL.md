@@ -262,10 +262,12 @@ Parse the output. Extract ALL scorer values and the average.
 
 ### 7. Decide
 
-**IMPROVED** (target score increased AND no other scorer regressed > 0.05):
+**Noise floor:** Heuristic scorers are deterministic — any delta is real. LLM judges have a noise floor of ~0.15 (one grade flip on one dataset row). Treat LLM judge deltas < 0.15 as noise unless corroborated by heuristic changes or consistent across multiple scorers.
+
+**IMPROVED** (target score increased beyond noise floor AND no other scorer regressed > 0.05):
 → Keep the commit. Print: `KEEP: {scorer} {old} → {new} (+{delta})`
 
-**SAME or WORSE** (target score didn't improve OR another scorer regressed significantly):
+**SAME or WORSE** (target score didn't improve beyond noise, OR another scorer regressed significantly):
 → Revert: `git revert HEAD --no-edit`
 → Print: `DISCARD: {scorer} {old} → {new} ({delta})`
 
