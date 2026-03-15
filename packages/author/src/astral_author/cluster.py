@@ -7,7 +7,7 @@ deep-dive sections (top groups by total relevance) and a catch-all
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 
 from astral_core import ContentItem, SpaceCategory
 
@@ -70,19 +70,8 @@ class CategoryClusterer:
             if i < self.max_deep_dives and len(members) >= self.min_group_size:
                 # Sort members by score descending so overflow drops lowest-scored
                 members.sort(key=lambda x: x[1], reverse=True)
-                # Cap any single source at 2 items per section for diversity
-                keep: list[tuple[ContentItem, float]] = []
-                overflow: list[tuple[ContentItem, float]] = []
-                src_counts: Counter[str] = Counter()
-                for item, score in members:
-                    if (
-                        len(keep) < self.max_items_per_section
-                        and src_counts[item.source_name] < 2
-                    ):
-                        keep.append((item, score))
-                        src_counts[item.source_name] += 1
-                    else:
-                        overflow.append((item, score))
+                keep = members[: self.max_items_per_section]
+                overflow = members[self.max_items_per_section :]
                 sections.append(
                     NewsletterSection(
                         heading=_HEADINGS.get(cat, cat.value.replace("_", " ").title()),
