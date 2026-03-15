@@ -160,6 +160,151 @@ rss_sources:
     category_hints: [international]
     poll_interval_hours: 4
 
+  # --- Tier 5: Category-specific feeds ---
+
+  # Earth Observation
+  - name: "NASA Earth Observatory"
+    url: "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss"
+    content_type: excerpt
+    category_hints: [earth_observation]
+    poll_interval_hours: 4
+
+  - name: "Geoawesome"
+    url: "https://geoawesome.com/feed"
+    content_type: excerpt
+    category_hints: [earth_observation]
+    poll_interval_hours: 4
+
+  # Mars & Planetary Science
+  - name: "NASA JPL News"
+    url: "https://www.jpl.nasa.gov/feeds/news/"
+    content_type: excerpt
+    category_hints: [mars, deep_space]
+    poll_interval_hours: 4
+
+  - name: "Phys.org Planetary Sciences"
+    url: "https://phys.org/rss-feed/space-news/planetary-sciences/"
+    content_type: excerpt
+    category_hints: [mars, space_science]
+    poll_interval_hours: 4
+
+  # Space Stations
+  - name: "NASA Space Station Blog"
+    url: "https://blogs.nasa.gov/spacestation/feed/"
+    content_type: full_text
+    category_hints: [iss_stations]
+    poll_interval_hours: 4
+
+  - name: "ISS National Lab"
+    url: "https://issnationallab.org/feed/"
+    content_type: full_text
+    category_hints: [iss_stations]
+    poll_interval_hours: 4
+
+  # Defense & Military Space
+  - name: "Breaking Defense"
+    url: "https://breakingdefense.com/full-rss-feed/"
+    content_type: full_text
+    category_hints: [defense_space, policy]
+    poll_interval_hours: 4
+
+  - name: "U.S. Space Force"
+    url: "https://www.spaceforce.mil/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=1060&max=10"
+    content_type: excerpt
+    category_hints: [defense_space]
+    poll_interval_hours: 4
+
+  - name: "Air & Space Forces Magazine"
+    url: "https://www.airandspaceforces.com/feed/"
+    content_type: excerpt
+    category_hints: [defense_space]
+    poll_interval_hours: 4
+
+  # Satellite Communications
+  - name: "Via Satellite"
+    url: "https://www.satellitetoday.com/category/telecom/feed/"
+    content_type: excerpt
+    category_hints: [satellite_comms]
+    poll_interval_hours: 4
+
+  - name: "TMF Associates"
+    url: "https://tmfassociates.com/blog/feed"
+    content_type: full_text
+    category_hints: [satellite_comms]
+    poll_interval_hours: 4
+
+  # Lunar Exploration
+  - name: "NASA Artemis Blog"
+    url: "https://www.nasa.gov/blogs/artemis/feed"
+    content_type: full_text
+    category_hints: [lunar]
+    poll_interval_hours: 4
+
+  - name: "Moon Daily"
+    url: "https://www.moondaily.com/moondaily.xml"
+    content_type: excerpt
+    category_hints: [lunar]
+    poll_interval_hours: 4
+
+  # Deep Space & Planetary Science
+  - name: "Astrobites"
+    url: "https://astrobites.org/feed"
+    content_type: full_text
+    category_hints: [deep_space, space_science]
+    poll_interval_hours: 4
+
+  - name: "Phys.org Astronomy"
+    url: "https://phys.org/rss-feed/space-news/astronomy/"
+    content_type: excerpt
+    category_hints: [deep_space, space_science]
+    poll_interval_hours: 4
+
+  # International Agencies
+  - name: "Canadian Space Agency"
+    url: "https://www.asc-csa.gc.ca/rss/default_eng.xml"
+    content_type: full_text
+    category_hints: [international]
+    poll_interval_hours: 4
+
+  - name: "UK Space Agency Blog"
+    url: "https://space.blog.gov.uk/feed/"
+    content_type: full_text
+    category_hints: [international]
+    poll_interval_hours: 4
+
+  # --- Tier 6: Industry & independent analysis ---
+
+  - name: "TechCrunch Space"
+    url: "https://techcrunch.com/category/space/feed/"
+    content_type: excerpt
+    category_hints: [commercial_space]
+    poll_interval_hours: 4
+    is_paywalled: true
+
+  - name: "Space Explored"
+    url: "https://spaceexplored.com/feed/"
+    content_type: full_text
+    category_hints: [commercial_space, launch_vehicles]
+    poll_interval_hours: 4
+
+  - name: "New Space Economy"
+    url: "https://newspaceeconomy.ca/feed"
+    content_type: full_text
+    category_hints: [commercial_space]
+    poll_interval_hours: 4
+
+  - name: "Ill-Defined Space"
+    url: "https://illdefinedspace.substack.com/feed"
+    content_type: full_text
+    category_hints: [defense_space, commercial_space, policy]
+    poll_interval_hours: 4
+
+  - name: "Main Engine Cut Off"
+    url: "https://mainenginecutoff.substack.com/feed"
+    content_type: full_text
+    category_hints: [policy, commercial_space]
+    poll_interval_hours: 4
+
 snapi:
   base_url: "https://api.spaceflightnewsapi.net/v4"
   endpoints:
