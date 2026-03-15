@@ -25,10 +25,10 @@ You are running the Astral Index quality improvement loop. Your job is to diagno
 `$ARGUMENTS` may contain:
 - A scorer name to target (e.g., `source_diversity`, `category_coverage`, `editorial_quality`)
 - A dataset name (e.g., `golden-standard`, `golden-full`, `golden-smoke`)
-- `--llm` to include LLM judges in the experiment
+- `--no-llm` to skip LLM judges (heuristic scorers only)
 - A free-text improvement goal
 
-Defaults: dataset = `golden-standard`, target = lowest scorer, no LLM judges.
+Defaults: dataset = `golden-standard`, target = lowest scorer, LLM judges enabled.
 
 ## Step 1: Establish Baseline
 
@@ -36,10 +36,10 @@ Parse `$ARGUMENTS` for dataset name and improvement goal.
 
 Run the baseline experiment:
 ```bash
-uv run --package astral-eval astral-eval experiment --dataset {DATASET} --strategy baseline --no-llm
+uv run --package astral-eval astral-eval experiment --dataset {DATASET} --strategy baseline
 ```
 
-If `--llm` was passed, omit `--no-llm`.
+If `--no-llm` was passed, add `--no-llm` to skip LLM judges.
 
 Read the output. Identify all scorer results. If no specific target was given in `$ARGUMENTS`, pick the lowest-scoring scorer as the target.
 
@@ -98,11 +98,10 @@ Run the experiment with the change:
 ```bash
 uv run --package astral-eval astral-eval experiment \
   --dataset {DATASET} --strategy {STRATEGY} \
-  --experiment-name "{change_description}-{scorer}-$(date +%Y%m%d)" \
-  --no-llm
+  --experiment-name "{change_description}-{scorer}-$(date +%Y%m%d)"
 ```
 
-If `--llm` was passed in arguments, omit `--no-llm`.
+If `--no-llm` was passed in arguments, add `--no-llm`.
 
 ## Step 6: Compare
 

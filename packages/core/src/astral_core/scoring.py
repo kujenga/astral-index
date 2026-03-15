@@ -84,7 +84,7 @@ def category_coverage(
     if input:
         for item in input:
             for cat in item.get("categories", []):
-                if cat:
+                if cat and cat != "off_topic":
                     input_cats.add(cat)
 
     if not input_cats:
@@ -100,7 +100,9 @@ def category_coverage(
         for item in input:
             item_id = item.get("id")
             if item_id:
-                input_item_cats[item_id] = [c for c in item.get("categories", []) if c]
+                input_item_cats[item_id] = [
+                    c for c in item.get("categories", []) if c and c != "off_topic"
+                ]
 
     output_cats: set[str] = set()
 

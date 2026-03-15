@@ -153,6 +153,25 @@ class TestCategoryCoverage:
         result = category_coverage(output=output, input=None)
         assert result.score == 1.0
 
+    def test_off_topic_excluded_from_input(self):
+        """off_topic excluded from input cats (filtered by pipeline)."""
+        input_items = [
+            {"id": "i1", "categories": ["launch_vehicles"]},
+            {"id": "i2", "categories": ["off_topic"]},
+        ]
+        output = {
+            "sections": [
+                {
+                    "heading": "Launch",
+                    "category": "launch_vehicles",
+                    "items": [{"item_id": "i1"}],
+                },
+            ]
+        }
+        result = category_coverage(output=output, input=input_items)
+        assert result.score == 1.0
+        assert result.metadata["input_cats"] == 1
+
     def test_metadata_tracks_coverage(self):
         """Metadata reports input/output cat counts and missing."""
         input_items = [

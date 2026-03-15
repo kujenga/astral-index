@@ -21,7 +21,7 @@ Create an agent team to optimize newsletter quality through parallel experimenta
 
 This is Astral Index, a space tech newsletter. The pipeline (rank → cluster → summarize → draft) lives in packages/author/src/astral_author/. Quality is measured by heuristic scorers via:
 
-  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
+  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
 
 Read .claude/skills/autoiterate/SKILL.md for the full iteration protocol.
 
@@ -68,7 +68,7 @@ Strategy: baseline
 ## Start
 
 First, establish baseline:
-  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
+  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
 
 Read the scorer implementations, then begin generation 1.
 ```

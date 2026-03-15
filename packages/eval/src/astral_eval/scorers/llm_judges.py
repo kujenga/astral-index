@@ -25,7 +25,7 @@ _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
 # Cross-model judge via Braintrust AI Proxy — different model family than
 # the Sonnet drafter to avoid self-preference bias
-_PROXY_MODEL = "gpt-4o-mini"
+_PROXY_MODEL = "gpt-4.1-mini"
 
 
 async def _judge_with_proxy(

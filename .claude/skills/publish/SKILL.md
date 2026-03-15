@@ -79,7 +79,7 @@ If `--strategy` was specified, skip this step and use that strategy.
 
 Otherwise, compare all strategies:
 ```bash
-uv run --package astral-eval astral-eval compare baseline headlines-only wide-coverage recency-biased --since {SINCE} --no-llm
+uv run --package astral-eval astral-eval compare baseline headlines-only wide-coverage recency-biased --since {SINCE}
 ```
 
 Parse the comparison output. Present a table with scores per strategy. Recommend the highest-scoring strategy with a brief rationale.

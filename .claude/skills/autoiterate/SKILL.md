@@ -50,7 +50,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 
 ### Other options
 - `--dataset NAME` — Braintrust dataset (default: `golden-standard`)
-- `--llm` — include LLM judges (slower, more expensive, non-deterministic)
+- `--no-llm` — skip LLM judges (faster, cheaper, deterministic — heuristic scorers only)
 - `--strategy NAME` — strategy to optimize (default: `baseline`)
 - Free-text improvement goal — interpreted as context for ideation
 
@@ -93,8 +93,10 @@ Also read the scorer implementations to understand what "good" means:
 
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY} --no-llm
+  --dataset {DATASET} --strategy {STRATEGY}
 ```
+
+If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to the command.
 
 Parse ALL scores. Record as iteration #0. In sweep mode, rank scorers low-to-high — the lowest becomes the first target.
 
@@ -251,8 +253,10 @@ Approach: {what you changed and why}"
 Run the experiment:
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY} --no-llm
+  --dataset {DATASET} --strategy {STRATEGY}
 ```
+
+If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to the command.
 
 Parse the output. Extract ALL scorer values and the average.
 
