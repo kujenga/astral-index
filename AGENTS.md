@@ -260,7 +260,13 @@ Read-only analysis: examines source coverage, pipeline stages, strategy configs,
 
 ### `/autoiterate` — Autonomous Quality Loop
 
-Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Targets a scorer, loops: ideate → modify → experiment → keep/revert. No human confirmation gates — runs until interrupted or bounded via `/loop N /autoiterate`. Each iteration is atomic (commit before verify, revert on regression). Results logged to `data/eval/autoiterate_log.md`.
+Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Loops: ideate → modify → experiment → keep/revert. No human confirmation gates — runs until interrupted, bounded via `/loop N`, or until a finish condition is met. Each iteration is atomic (commit before verify, revert on regression). Results logged to `data/eval/autoiterate_log.md`.
+
+**Modes:** `--mode single` targets one scorer. `--mode sweep` (default) rotates through all scorers, weakest first, with stuck-detection after 3 consecutive failures.
+
+**Scope:** `--scope author` (default), `prompts`, `strategies`, `eval`, `sources`, or `full` (all of the above). In `full` scope the agent picks the highest-impact lever for each target.
+
+**Finish conditions:** `--until "all scorers above 0.6"`, `--until "average score exceeds 0.75"`, `--until "no scorer below 0.4"`, etc. Evaluated mechanically after each iteration.
 
 **Parallel mode (agent teams):** See `.claude/skills/autoiterate/TEAM.md` for a ready-to-paste prompt that spawns 3 teammates in git worktrees, each trying a different approach. The lead merges the winner each generation. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (set in `.claude/settings.json`).
 
@@ -273,7 +279,9 @@ Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.
 /audit-eval ──(scorer fixes)──┘       (low scores) ───────┘
 
 /autoiterate ── autonomous loop (serial or parallel via agent teams)
-     └── targets one scorer at a time, chains improvements
+     ├── --mode sweep: rotates through weakest scorers
+     ├── --scope full: touches pipeline code, prompts, strategies, eval, sources
+     └── --until "condition": stops when quality target is met
 ```
 
 ## Keeping docs current

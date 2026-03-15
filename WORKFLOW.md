@@ -269,7 +269,7 @@ The manual loop above can be automated with project-local Claude Code skills:
 - **`/brainstorm`** — strategic analysis of source coverage, pipeline gaps, and eval dimensions. Read-only; output feeds into `/iterate`.
 - **`/publish --since 7`** — full pipeline with quality gates (replaces `scripts/weekly.sh`). Includes strategy comparison, score thresholds, and editorial review before delivery.
 
-**Autonomous mode:** `/autoiterate source_diversity` runs the full loop without human input — modify, experiment, keep/revert, repeat. Bound with `/loop 10 /autoiterate` for a fixed number of iterations. For parallel exploration, see `.claude/skills/autoiterate/TEAM.md` for an agent team prompt that spawns 3 teammates in worktrees, each trying a different approach per generation.
+**Autonomous mode:** `/autoiterate` runs the full loop without human input — sweep across all scorers, modify, experiment, keep/revert, repeat. Target a single scorer with `/autoiterate source_diversity`, bound iterations with `/loop 10 /autoiterate`, or set a finish condition with `--until "all scorers above 0.6"`. Control what files the agent may touch with `--scope` (author, prompts, strategies, eval, sources, full). For parallel exploration, see `.claude/skills/autoiterate/TEAM.md` for an agent team prompt that spawns 3 teammates in worktrees.
 
 Typical workflow: `/brainstorm` to identify targets, `/iterate` (manual) or `/autoiterate` (autonomous) to implement them, `/audit-eval` to validate scorers, `/publish` to ship.
 
