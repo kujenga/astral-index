@@ -60,8 +60,12 @@ def _make_all() -> dict[str, Callable]:
         coherence_flow,
         coverage_adequacy,
         editorial_quality,
+        introduction_quality,
         link_quality,
         readability_fit,
+        summary_faithfulness,
+        summary_informativeness,
+        tone_consistency,
     )
 
     scorers = [
@@ -76,6 +80,10 @@ def _make_all() -> dict[str, Callable]:
         readability_fit,
         link_quality,
         coherence_flow,
+        summary_faithfulness,
+        summary_informativeness,
+        introduction_quality,
+        tone_consistency,
     ]
     return {f"bt_{s.__name__}": wrap_scorer(s) for s in scorers}
 
@@ -94,6 +102,10 @@ bt_coverage_adequacy = _ALL["bt_coverage_adequacy"]
 bt_readability_fit = _ALL["bt_readability_fit"]
 bt_link_quality = _ALL["bt_link_quality"]
 bt_coherence_flow = _ALL["bt_coherence_flow"]
+bt_summary_faithfulness = _ALL["bt_summary_faithfulness"]
+bt_summary_informativeness = _ALL["bt_summary_informativeness"]
+bt_introduction_quality = _ALL["bt_introduction_quality"]
+bt_tone_consistency = _ALL["bt_tone_consistency"]
 
 HEURISTIC_BT_SCORERS = [
     bt_source_diversity,
@@ -109,5 +121,9 @@ LLM_BT_SCORERS = [
     bt_readability_fit,
     bt_link_quality,
     bt_coherence_flow,
+    bt_summary_faithfulness,
+    bt_summary_informativeness,
+    bt_introduction_quality,
+    bt_tone_consistency,
 ]
 ALL_BT_SCORERS = HEURISTIC_BT_SCORERS + LLM_BT_SCORERS

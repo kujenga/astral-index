@@ -9,6 +9,7 @@ skip them gracefully.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
@@ -285,5 +286,232 @@ async def coherence_flow(
     return await _judge(
         "coherence_flow",
         _COHERENCE_FLOW_SYSTEM,
+        f"Newsletter:\n\n{markdown}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Thinking-mode ensemble judges
+# ---------------------------------------------------------------------------
+
+# Uses Claude Sonnet with extended thinking for deeper evaluation
+_THINKING_MODEL = "claude-sonnet-4-20250514"
+
+
+async def _judge_thinking(
+    name: str,
+    system: str,
+    user_content: str,
+    *,
+    model: str | None = None,
+) -> Score | None:
+    """Judge via Anthropic SDK with extended thinking enabled."""
+    client = get_llm_client()
+    if client is None:
+        return None
+
+    try:
+        response = await client.messages.create(
+            model=model or _THINKING_MODEL,
+            max_tokens=16000,
+            thinking={"type": "enabled", "budget_tokens": 4096},
+            # system param is not supported with thinking; prepend to user message
+            messages=[
+                {"role": "user", "content": f"{system}\n\n---\n\n{user_content}"}
+            ],
+        )
+    except Exception:
+        logger.warning("Thinking judge failed for %s", name, exc_info=True)
+        return None
+
+    # Extract text block (skip thinking blocks)
+    text = next((b.text for b in response.content if b.type == "text"), "")
+    return _extract_score(name, text)
+
+
+async def _ensemble_judge(
+    name: str,
+    system: str,
+    user_content: str,
+    *,
+    n: int = 3,
+) -> Score | None:
+    """Run N independent thinking-mode calls and return the median score."""
+    tasks = [_judge_thinking(name, system, user_content) for _ in range(n)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    scores = [r for r in results if isinstance(r, Score) and r.score > 0]
+    if not scores:
+        return None
+    scores.sort(key=lambda s: s.score)
+    median = scores[len(scores) // 2]
+    return Score(
+        name=name,
+        score=median.score,
+        metadata={
+            "choice": median.metadata.get("choice"),
+            "ensemble_size": n,
+            "all_scores": [s.score for s in scores],
+            "all_choices": [s.metadata.get("choice") for s in scores],
+            "aggregation": "median",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Thinking-mode rubric prompts
+# ---------------------------------------------------------------------------
+
+_SUMMARY_FAITHFULNESS_SYSTEM = """\
+You are evaluating a space technology newsletter for summary faithfulness.
+Compare each item summary in the newsletter against the corresponding source \
+article text provided below. Check for hallucinated claims, distortions, or \
+unsupported inferences.
+
+Rate on this rubric:
+A - All summaries faithfully represent source content; no hallucinated claims.
+B - Summaries are mostly faithful; one minor distortion or unsupported inference.
+C - Several summaries misrepresent sources or add unsupported claims.
+D - Widespread inaccuracy; summaries contradict or fabricate source content.
+
+Respond with exactly one letter (A, B, C, or D) \
+followed by a one-sentence justification."""
+
+_SUMMARY_INFORMATIVENESS_SYSTEM = """\
+You are evaluating a space technology newsletter for summary informativeness.
+Assess whether each item summary adds value beyond the headline — specific \
+facts, figures, implications, or context that a reader wouldn't get from \
+scanning titles alone.
+
+Rate on this rubric:
+A - Every summary adds context beyond the headline — specific facts, figures, \
+or implications.
+B - Most summaries are informative; a few are just headline restatements.
+C - Many summaries are shallow or repetitive; little value over scanning \
+titles alone.
+D - Summaries are mostly headline rewrites with padding words.
+
+Respond with exactly one letter (A, B, C, or D) \
+followed by a one-sentence justification."""
+
+_INTRODUCTION_QUALITY_SYSTEM = """\
+You are evaluating the introduction of a space technology newsletter.
+Assess whether the opening is compelling, frames the issue's themes, and \
+motivates the reader to continue.
+
+Rate on this rubric:
+A - Opening is engaging, frames the week's themes, and motivates reading \
+further.
+B - Competent intro that summarizes the issue but lacks a compelling hook.
+C - Generic or templated intro; could apply to any week.
+D - Missing, empty, or confusing introduction.
+
+Respond with exactly one letter (A, B, C, or D) \
+followed by a one-sentence justification."""
+
+_TONE_CONSISTENCY_SYSTEM = """\
+You are evaluating a space technology newsletter for tone consistency.
+Assess whether the newsletter maintains a consistent editorial voice \
+throughout all sections.
+
+Rate on this rubric:
+A - Uniform voice throughout; transitions between sections feel authored by \
+one editor.
+B - Mostly consistent; one section noticeably shifts register.
+C - Uneven tone; alternates between formal and casual or between editorial \
+styles.
+D - Jarring shifts; reads like multiple authors stitched together.
+
+Respond with exactly one letter (A, B, C, or D) \
+followed by a one-sentence justification."""
+
+
+# ---------------------------------------------------------------------------
+# Public thinking-mode scorer functions
+# ---------------------------------------------------------------------------
+
+
+async def summary_faithfulness(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score | None:
+    """Judge whether summaries faithfully represent their source articles."""
+    markdown = output.get("markdown", "")
+
+    # Build source context from input items for cross-referencing
+    source_context = ""
+    if input:
+        excerpts = []
+        for item in input[:10]:
+            title = item.get("title", "?")
+            body = item.get("body_text") or item.get("excerpt") or ""
+            body = body[:500]
+            excerpts.append(f"- **{title}**: {body}")
+        source_context = "\n".join(excerpts)
+
+    user = f"Newsletter:\n\n{markdown}"
+    if source_context:
+        user += f"\n\n---\nSource articles:\n{source_context}"
+
+    return await _ensemble_judge(
+        "summary_faithfulness",
+        _SUMMARY_FAITHFULNESS_SYSTEM,
+        user,
+    )
+
+
+async def summary_informativeness(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score | None:
+    """Judge whether summaries add value beyond headlines."""
+    markdown = output.get("markdown", "")
+    return await _ensemble_judge(
+        "summary_informativeness",
+        _SUMMARY_INFORMATIVENESS_SYSTEM,
+        f"Newsletter:\n\n{markdown}",
+    )
+
+
+async def introduction_quality(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score | None:
+    """Judge whether the introduction is compelling and frames the issue."""
+    markdown = output.get("markdown", "")
+
+    # Extract intro and section headings for context
+    lines = markdown.split("\n")
+    headings = [line for line in lines if line.startswith("## ")]
+    heading_context = "\n".join(headings) if headings else ""
+
+    introduction = output.get("introduction", "")
+    user = f"Introduction:\n\n{introduction}"
+    if heading_context:
+        user += f"\n\n---\nSection headings:\n{heading_context}"
+
+    return await _ensemble_judge(
+        "introduction_quality",
+        _INTRODUCTION_QUALITY_SYSTEM,
+        user,
+    )
+
+
+async def tone_consistency(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score | None:
+    """Judge whether the newsletter maintains a consistent editorial voice."""
+    markdown = output.get("markdown", "")
+    return await _ensemble_judge(
+        "tone_consistency",
+        _TONE_CONSISTENCY_SYSTEM,
         f"Newsletter:\n\n{markdown}",
     )

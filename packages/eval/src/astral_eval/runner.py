@@ -21,8 +21,12 @@ from .scorers.llm_judges import (
     coherence_flow,
     coverage_adequacy,
     editorial_quality,
+    introduction_quality,
     link_quality,
     readability_fit,
+    summary_faithfulness,
+    summary_informativeness,
+    tone_consistency,
 )
 from .scores import Score
 
@@ -41,7 +45,13 @@ LLM_SCORERS = [
     link_quality,
     coherence_flow,
 ]
-ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS
+THINKING_LLM_SCORERS = [
+    summary_faithfulness,
+    summary_informativeness,
+    introduction_quality,
+    tone_consistency,
+]
+ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS + THINKING_LLM_SCORERS
 
 
 async def run_quality_eval(
@@ -69,7 +79,7 @@ async def run_quality_eval(
     # Run LLM judges (async, concurrent)
     if use_llm:
         llm_tasks = []
-        for scorer in LLM_SCORERS:
+        for scorer in LLM_SCORERS + THINKING_LLM_SCORERS:
             if inspect.iscoroutinefunction(scorer):
                 llm_tasks.append(scorer(output=output, input=input_data))
 
