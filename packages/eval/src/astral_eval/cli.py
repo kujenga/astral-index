@@ -546,6 +546,48 @@ def seed_prompts_cmd(dry_run: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
+# fetch-oi-reference command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("fetch-oi-reference")
+@click.option(
+    "--cache-dir",
+    default="data/oi_reference",
+    type=click.Path(),
+    help="Directory for cached OI issue text.",
+)
+def fetch_oi_reference_cmd(cache_dir: str) -> None:
+    """Pre-populate the local OI reference cache for golden windows."""
+    from .datasets import _OI_WINDOWS, _window_to_datetimes
+    from .oi_reference import (
+        build_oi_index,
+        find_oi_issues_for_window,
+        get_oi_reference,
+    )
+
+    click.echo("Building OI archive index...")
+    index = build_oi_index(cache_dir=cache_dir)
+    click.echo(f"Index contains {len(index)} issues")
+
+    for window_key in _OI_WINDOWS:
+        since, until = _window_to_datetimes(window_key)
+        start_d, end_d = since.date(), until.date()
+        matching = find_oi_issues_for_window(start_d, end_d, index)
+        click.echo(
+            f"\n{window_key} ({start_d} to {end_d}): {len(matching)} matching issue(s)"
+        )
+        for entry in matching:
+            click.echo(f"  Issue #{entry.get('issue_number', '?')}: {entry['url']}")
+
+        text = get_oi_reference(start_d, end_d, cache_dir=cache_dir)
+        if text:
+            click.echo(f"  Cached {len(text)} chars of reference text")
+        else:
+            click.echo("  No text extracted")
+
+
+# ---------------------------------------------------------------------------
 # score command
 # ---------------------------------------------------------------------------
 

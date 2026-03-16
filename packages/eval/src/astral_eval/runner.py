@@ -29,6 +29,11 @@ from .scorers.llm_judges import (
     summary_informativeness,
     tone_consistency,
 )
+from .scorers.reference_judges import (
+    editorial_depth_comparison,
+    structural_similarity,
+    topic_overlap,
+)
 from .scores import Score
 
 HEURISTIC_SCORERS = [
@@ -53,7 +58,12 @@ THINKING_LLM_SCORERS = [
     introduction_quality,
     tone_consistency,
 ]
-ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS + THINKING_LLM_SCORERS
+REFERENCE_SCORERS = [
+    topic_overlap,
+    editorial_depth_comparison,
+    structural_similarity,
+]
+ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS + THINKING_LLM_SCORERS + REFERENCE_SCORERS
 
 
 async def run_quality_eval(
@@ -61,11 +71,15 @@ async def run_quality_eval(
     items: list[ContentItem],
     *,
     use_llm: bool = True,
+    expected: str | None = None,
 ) -> dict[str, Score]:
     """Run selected scorers and collect results.
 
     Heuristic scorers run synchronously; LLM judges run concurrently via
     asyncio.gather. Scorers that return None are silently skipped.
+
+    When ``expected`` is provided (OI reference text), reference comparison
+    judges are included in the LLM judge batch.
     """
     output = draft.model_dump(mode="json")
     input_data: list[dict[str, Any]] = [item.model_dump(mode="json") for item in items]
@@ -81,9 +95,12 @@ async def run_quality_eval(
     # Run LLM judges (async, concurrent)
     if use_llm:
         llm_tasks = []
-        for scorer in LLM_SCORERS + THINKING_LLM_SCORERS:
+        scorers_to_run = LLM_SCORERS + THINKING_LLM_SCORERS + REFERENCE_SCORERS
+        for scorer in scorers_to_run:
             if inspect.iscoroutinefunction(scorer):
-                llm_tasks.append(scorer(output=output, input=input_data))
+                llm_tasks.append(
+                    scorer(output=output, input=input_data, expected=expected)
+                )
 
         llm_results = await asyncio.gather(*llm_tasks, return_exceptions=True)
         for result in llm_results:

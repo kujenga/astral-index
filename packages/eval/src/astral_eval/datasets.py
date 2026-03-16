@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from astral_core import ContentItem, ContentStore
@@ -34,10 +35,14 @@ _WINDOWS: dict[str, tuple[str, str]] = {
     "2026-Mar": ("2026-03-02", "2026-03-09"),
 }
 
+# Windows with matching OI issues (OI ended Jan 7, 2026)
+_OI_WINDOWS = ["2025-Q1", "2025-Q2", "2025-Q3", "2025-Q4"]
+
 STANDARD_DATASETS: dict[str, list[str]] = {
     "golden-smoke": ["2025-Q4"],
     "golden-standard": ["2025-Q3", "2025-Q4", "2026-Feb-early", "2026-Feb-late"],
     "golden-full": list(_WINDOWS.keys()),
+    "golden-oi": _OI_WINDOWS,
 }
 
 
@@ -125,7 +130,13 @@ def setup_standard_datasets(
         total_items = 0
         rows = 0
 
-        for week_start, week_end in weeks:
+        # Resolve OI references for windows in this dataset
+        oi_cache_dir = str(Path(base_dir) / "oi_reference")
+        populate_oi = any(wk in _OI_WINDOWS for wk in window_keys)
+        if populate_oi:
+            from .oi_reference import get_oi_reference
+
+        for window_key, (week_start, week_end) in zip(window_keys, weeks, strict=True):
             items = _list_items_by_date_dir(base_dir, week_start, week_end)
             if not items:
                 logger.warning(
@@ -140,16 +151,38 @@ def setup_standard_datasets(
                 for cat in item.categories:
                     cat_counts[cat] += 1
 
+            # Fetch OI reference text for 2025 windows
+            oi_text: str | None = None
+            oi_issues: list[str] = []
+            if populate_oi and window_key in _OI_WINDOWS:
+                oi_text = get_oi_reference(
+                    week_start.date(), week_end.date(), cache_dir=oi_cache_dir
+                )
+                if oi_text:
+                    from .oi_reference import build_oi_index, find_oi_issues_for_window
+
+                    idx = build_oi_index(cache_dir=oi_cache_dir)
+                    matching = find_oi_issues_for_window(
+                        week_start.date(), week_end.date(), idx
+                    )
+                    oi_issues = [e["url"] for e in matching]
+
             input_data = [item.model_dump(mode="json") for item in items]
-            dataset.insert(
-                input=input_data,
-                metadata={
+            row_kwargs: dict[str, Any] = {
+                "input": input_data,
+                "metadata": {
                     "week_start": week_start.strftime("%Y-%m-%d"),
                     "week_end": week_end.strftime("%Y-%m-%d"),
                     "item_count": len(items),
                     "categories": dict(cat_counts),
+                    "has_oi_reference": oi_text is not None,
+                    "oi_issues": oi_issues,
                 },
-            )
+            }
+            if oi_text is not None:
+                row_kwargs["expected"] = oi_text
+
+            dataset.insert(**row_kwargs)
             total_items += len(items)
             rows += 1
 

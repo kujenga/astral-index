@@ -89,13 +89,14 @@ async def _run_local(
     max_items: int,
     use_llm: bool,
     experiment_name: str,
+    expected: str | None = None,
 ) -> dict[str, Any]:
     """Fallback: run with the existing local eval runner."""
     from .runner import run_quality_eval
 
     pipeline = build_strategy(strategy_name)
     draft = await pipeline.run(items, max_items=max_items)
-    scores = await run_quality_eval(draft, items, use_llm=use_llm)
+    scores = await run_quality_eval(draft, items, use_llm=use_llm, expected=expected)
 
     return {
         "experiment_name": experiment_name,
@@ -141,8 +142,10 @@ async def _run_braintrust(
         input_data = [item.model_dump(mode="json") for item in items]
         data = [{"input": input_data}]
 
-    # The task function: run the authoring pipeline and return serialized draft
-    async def task(input: Any, hooks: Any = None) -> dict[str, Any]:
+    # The task function: run the authoring pipeline and return serialized draft.
+    # Returns (output, expected) tuple when expected is present in the dataset
+    # row, so Braintrust passes it through to scorers.
+    async def task(input: Any, expected: Any = None, hooks: Any = None) -> Any:
         # input is a list of ContentItem dicts; reconstruct
         task_items = [ContentItem.model_validate(d) for d in input]
         pipeline = build_strategy(strategy_name)
