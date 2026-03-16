@@ -124,13 +124,20 @@ Provides measurable feedback for iterating on ranker weights, summarizer prompts
 - `link_quality` — claims sourced, descriptive anchor text, primary sources preferred
 - `coherence_flow` — logical section ordering, narrative arc, transitions
 
+**Reference comparison judges** (compare against The Orbital Index):
+- `oi_topic_overlap` — did we cover the same major stories as the corresponding OI issue?
+- `oi_editorial_depth` — is our analysis as deep as OI's?
+- `oi_structural_similarity` — similar format and section diversity?
+
+Reference judges receive OI issue text as `expected` via kwargs. They return `None` when no reference is available (2026 windows), so existing eval flows are unaffected. The `golden-oi` dataset tier contains only 2025 windows with matching OI issues. OI text is fetched and cached locally in `data/oi_reference/`.
+
 Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). All LLM callsites (classifier, summarizer, drafter, eval judges) use the shared `get_llm_client()` factory from `astral_core`, which automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set.
 
 **Architecture** — scorers are standalone functions returning a `Score(name, score, metadata)` dataclass. The runner orchestrates sync heuristic + async concurrent LLM execution. All judges degrade gracefully (return `None`) without API keys.
 
-**CLI** — `astral-eval quality`.
+**CLI** — `astral-eval quality`, `astral-eval fetch-oi-reference`.
 
-**Planned** — classification accuracy metrics, dedup effectiveness measurement, source health monitoring, Braintrust experiment tracking integration.
+**Planned** — classification accuracy metrics, dedup effectiveness measurement, source health monitoring.
 
 ## Data flow
 
@@ -207,7 +214,7 @@ Completed phases and planned work:
 
 ### Planned
 
-- **Phase 6 (remaining)** — Classification accuracy metrics, dedup effectiveness measurement, source health monitoring, Braintrust experiment tracking for A/B strategy comparison.
-- **Golden-set evaluation against The Orbital Index** — Scrape and store source material for time periods matching actual Orbital Index issues (350 issues, 2019–2026). Generate a newsletter for the same week using `--since`/`--before` to restrict inputs to that window, then evaluate the output against the real issue. This enables reference-based scoring: did we pick the same top stories? How does our summary compare to a human-written one? An LLM judge can compare the two newsletters side-by-side on coverage overlap, editorial quality gap, and information density. Building a corpus of 10–20 golden weeks would give a stable benchmark for measuring strategy improvements — each pipeline change can be scored against the same reference set rather than relying solely on absolute quality rubrics.
+- **Phase 6 (remaining)** — Classification accuracy metrics, dedup effectiveness measurement, source health monitoring.
+- **Golden-set evaluation against The Orbital Index** — Done. Three reference comparison judges (topic overlap, editorial depth, structural similarity) compare generated newsletters against the corresponding OI issue. OI archive is scraped and cached locally. The `golden-oi` dataset tier contains 4 windows from 2025 with matching OI issues.
 - **Delivery expansion** — RSS feed generation, static web archive, broader distribution channels.
 - **Ongoing** — Source list expansion (Discord servers, government documents, FAA filings, more agency feeds), editorial voice tuning, anti-hallucination safeguards, fact-checking layers.
