@@ -50,6 +50,7 @@ def _make_all() -> dict[str, Callable]:
     """Build wrapped versions of all scorers, imported lazily to avoid cycles."""
     from .scorers.heuristic import (
         category_coverage,
+        content_originality,
         intro_quality,
         link_count,
         off_topic_leakage,
@@ -79,6 +80,7 @@ def _make_all() -> dict[str, Callable]:
         off_topic_leakage,
         intro_quality,
         summary_quality,
+        content_originality,
         editorial_quality,
         coverage_adequacy,
         readability_fit,
@@ -103,6 +105,7 @@ bt_semantic_dedup = _ALL["bt_semantic_dedup"]
 bt_off_topic_leakage = _ALL["bt_off_topic_leakage"]
 bt_intro_quality = _ALL["bt_intro_quality"]
 bt_summary_quality = _ALL["bt_summary_quality"]
+bt_content_originality = _ALL["bt_content_originality"]
 bt_editorial_quality = _ALL["bt_editorial_quality"]
 bt_coverage_adequacy = _ALL["bt_coverage_adequacy"]
 bt_readability_fit = _ALL["bt_readability_fit"]
@@ -122,6 +125,7 @@ HEURISTIC_BT_SCORERS = [
     bt_off_topic_leakage,
     bt_intro_quality,
     bt_summary_quality,
+    bt_content_originality,
 ]
 LLM_BT_SCORERS = [
     bt_editorial_quality,

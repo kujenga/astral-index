@@ -528,6 +528,56 @@ def summary_quality(
     )
 
 
+_SOCIAL_SOURCES = re.compile(r"(?i)^(twitter:|bluesky:|reddit:)", flags=0)
+
+
+def content_originality(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    target_ratio: float = 0.70,
+    **kwargs: Any,
+) -> Score:
+    """Fraction of output items from original reporting vs social posts.
+
+    Items whose source_name starts with "Twitter:", "Bluesky:", or
+    "Reddit:" are counted as social. Score = min(1.0, original_ratio /
+    target_ratio). A newsletter with 70%+ original content scores 1.0.
+    """
+    total = 0
+    social = 0
+    social_items: list[str] = []
+
+    for section in output.get("sections", []):
+        for item in section.get("items", []):
+            total += 1
+            source = item.get("source_name", "")
+            if _SOCIAL_SOURCES.match(source):
+                social += 1
+                social_items.append(f"{item.get('title', '?')[:50]} ({source})")
+
+    if total == 0:
+        return Score(
+            name="content_originality",
+            score=1.0,
+            metadata={"total": 0, "social": 0},
+        )
+
+    original_ratio = 1.0 - (social / total)
+    final = min(1.0, original_ratio / target_ratio)
+
+    return Score(
+        name="content_originality",
+        score=round(final, 3),
+        metadata={
+            "total": total,
+            "social": social,
+            "original_ratio": round(original_ratio, 3),
+            "social_items": social_items,
+        },
+    )
+
+
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
@@ -537,4 +587,5 @@ HEURISTIC_SCORERS = [
     off_topic_leakage,
     intro_quality,
     summary_quality,
+    content_originality,
 ]
