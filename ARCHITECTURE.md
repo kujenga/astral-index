@@ -124,7 +124,7 @@ Provides measurable feedback for iterating on ranker weights, summarizer prompts
 - `link_quality` — claims sourced, descriptive anchor text, primary sources preferred
 - `coherence_flow` — logical section ordering, narrative arc, transitions
 
-Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). Optional Braintrust tracing via `wrap_anthropic` when `BRAINTRUST_API_KEY` is set.
+Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). All LLM callsites (classifier, summarizer, drafter, eval judges) use the shared `get_llm_client()` factory from `astral_core`, which automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set.
 
 **Architecture** — scorers are standalone functions returning a `Score(name, score, metadata)` dataclass. The runner orchestrates sync heuristic + async concurrent LLM execution. All judges degrade gracefully (return `None`) without API keys.
 

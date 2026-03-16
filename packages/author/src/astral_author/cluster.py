@@ -38,9 +38,11 @@ class CategoryClusterer:
         *,
         max_deep_dives: int = 3,
         min_group_size: int = 2,
+        max_items_per_section: int = 12,
     ) -> None:
         self.max_deep_dives = max_deep_dives
         self.min_group_size = min_group_size
+        self.max_items_per_section = max_items_per_section
 
     async def cluster(
         self,
@@ -63,25 +65,48 @@ class CategoryClusterer:
         sections: list[NewsletterSection] = []
         brief_items: list[tuple[ContentItem, float]] = []
 
-        # Top N groups become deep-dive sections
+        # Top N groups become deep-dive sections; overflow excess items to brief
         for i, (cat, members) in enumerate(categorized):
             if i < self.max_deep_dives and len(members) >= self.min_group_size:
+                # Sort members by score descending so overflow drops lowest-scored
+                members.sort(key=lambda x: x[1], reverse=True)
+                keep = members[: self.max_items_per_section]
+                overflow = members[self.max_items_per_section :]
                 sections.append(
                     NewsletterSection(
                         heading=_HEADINGS.get(cat, cat.value.replace("_", " ").title()),
                         category=cat,
                         section_type=SectionType.DEEP_DIVE,
-                        source_items=[item.id for item, _ in members],
+                        source_items=[item.id for item, _ in keep],
                     )
                 )
+                brief_items.extend(overflow)
             else:
                 brief_items.extend(members)
 
         # Uncategorized items go to brief
         brief_items.extend(groups.get(None, []))
 
-        # Sort brief items by score descending
+        # Sort brief items by score descending and cap size while preserving
+        # category diversity — keep at least one item per category.
         brief_items.sort(key=lambda x: x[1], reverse=True)
+        if len(brief_items) > self.max_items_per_section:
+            kept: list[tuple[ContentItem, float]] = []
+            seen_cats: set[SpaceCategory] = set()
+            # First pass: guarantee one item per unseen category
+            for item, score in brief_items:
+                item_cats = set(item.categories) - seen_cats
+                if item_cats:
+                    kept.append((item, score))
+                    seen_cats.update(item.categories)
+            # Second pass: fill remaining slots by score
+            kept_ids = {item.id for item, _ in kept}
+            for item, score in brief_items:
+                if len(kept) >= self.max_items_per_section:
+                    break
+                if item.id not in kept_ids:
+                    kept.append((item, score))
+            brief_items = kept
 
         if brief_items:
             sections.append(

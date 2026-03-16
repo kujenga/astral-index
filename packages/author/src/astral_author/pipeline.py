@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from astral_core import ContentItem
 
@@ -14,6 +16,8 @@ from .models import NewsletterDraft
 from .rank import EngagementRanker
 from .stages import Clusterer, Drafter, Ranker, Summarizer
 from .summarize import ExcerptSummarizer, LLMSummarizer
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,19 +57,59 @@ class DraftPipeline:
         newsletter = await self.drafter.draft(summarized, items_by_id)
 
         elapsed = time.monotonic() - start
-        return newsletter.model_copy(
+        newsletter = newsletter.model_copy(
             update={
                 "strategy_name": self.name,
                 "generation_seconds": round(elapsed, 2),
             }
         )
 
+        _log_online_scores(newsletter, items)
+
+        return newsletter
+
+
+def _log_online_scores(newsletter: NewsletterDraft, items: list[ContentItem]) -> None:
+    """Run heuristic scorers and log to Braintrust if available.
+
+    Pure computation (<1ms), no LLM cost. Scores are attached to the
+    current Braintrust span for production quality monitoring.
+    """
+    try:
+        from astral_core.scoring import HEURISTIC_SCORERS
+    except ImportError:
+        return
+
+    output = newsletter.model_dump(mode="json")
+    input_data: list[dict[str, Any]] = [item.model_dump(mode="json") for item in items]
+
+    scores: dict[str, float] = {}
+    for scorer in HEURISTIC_SCORERS:
+        result = scorer(output=output, input=input_data)
+        if result is not None:
+            scores[result.name] = result.score
+
+    if not scores:
+        return
+
+    try:
+        import braintrust
+
+        span = braintrust.current_span()
+        span.log(scores=scores)
+    except Exception:
+        pass
+
+    logger.debug("Online scores: %s", scores)
+
 
 def _build_baseline() -> DraftPipeline:
     return DraftPipeline(
         name="baseline",
         ranker=EngagementRanker(),
-        clusterer=CategoryClusterer(),
+        clusterer=CategoryClusterer(
+            max_deep_dives=5, min_group_size=3, max_items_per_section=6
+        ),
         summarizer=LLMSummarizer(),
         drafter=MarkdownDrafter(),
     )
@@ -81,10 +125,37 @@ def _build_headlines_only() -> DraftPipeline:
     )
 
 
+def _build_wide_coverage() -> DraftPipeline:
+    return DraftPipeline(
+        name="wide-coverage",
+        ranker=EngagementRanker(),
+        clusterer=CategoryClusterer(max_deep_dives=5, min_group_size=1),
+        summarizer=ExcerptSummarizer(),
+        drafter=MarkdownDrafter(),
+    )
+
+
+def _build_recency_biased() -> DraftPipeline:
+    return DraftPipeline(
+        name="recency-biased",
+        ranker=EngagementRanker(
+            w_recency=0.50,
+            w_engagement=0.20,
+            w_source=0.20,
+            w_quality=0.10,
+        ),
+        clusterer=CategoryClusterer(),
+        summarizer=ExcerptSummarizer(),
+        drafter=MarkdownDrafter(),
+    )
+
+
 # Registry of named strategies
 STRATEGIES: dict[str, Callable[[], DraftPipeline]] = {
     "baseline": _build_baseline,
     "headlines-only": _build_headlines_only,
+    "wide-coverage": _build_wide_coverage,
+    "recency-biased": _build_recency_biased,
 }
 
 

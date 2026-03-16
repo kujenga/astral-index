@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -15,9 +16,15 @@ from astral_core import ContentStore, bootstrap
 
 from .runner import run_quality_eval
 
+logger = logging.getLogger(__name__)
 
-def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
+
+def _parse_since(
+    ctx: click.Context, param: click.Parameter, value: str | None
+) -> datetime | None:
     """Click callback: accept integer days-back or YYYY-MM-DD date string."""
+    if value is None:
+        return None
     try:
         days = int(value)
         return datetime.now(UTC) - timedelta(days=days)
@@ -166,3 +173,437 @@ def _format_metadata(meta: dict) -> str:
         else:
             parts.append(f"{k}={v}")
     return ", ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# experiment command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--strategy",
+    "strategy_name",
+    default="headlines-only",
+    type=click.Choice(list(STRATEGIES.keys())),
+    help="Pipeline strategy for draft generation.",
+)
+@click.option(
+    "--experiment-name",
+    default=None,
+    type=str,
+    help="Braintrust experiment name (default: {strategy}-{date}).",
+)
+@click.option(
+    "--dataset",
+    "dataset_name",
+    default=None,
+    type=str,
+    help="Braintrust dataset name to use as input.",
+)
+@click.option(
+    "--max-items",
+    default=50,
+    type=int,
+    help="Maximum items to include.",
+)
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    help="Skip LLM judge scorers (heuristic only).",
+)
+def experiment(
+    since: datetime,
+    strategy_name: str,
+    experiment_name: str | None,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+) -> None:
+    """Run a Braintrust-tracked eval experiment."""
+    asyncio.run(
+        _experiment(
+            since,
+            strategy_name,
+            experiment_name,
+            dataset_name,
+            max_items,
+            no_llm,
+        )
+    )
+
+
+async def _experiment(
+    since: datetime,
+    strategy_name: str,
+    experiment_name: str | None,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+) -> None:
+    from .experiment import run_experiment
+
+    # Load local items (needed even with dataset, for item count display)
+    items: list = []
+    if not dataset_name:
+        # Warn about unlinked experiments when Braintrust is available
+        import os
+
+        if os.environ.get("BRAINTRUST_API_KEY"):
+            click.secho(
+                "WARNING: Running without --dataset. Results will be unlinked. "
+                "Use --dataset golden-standard for reproducible iteration.",
+                fg="yellow",
+                err=True,
+            )
+        store = ContentStore()
+        items = store.list_items(since=since)
+        if not items:
+            click.echo("No items found.")
+            return
+        click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
+
+    result = await run_experiment(
+        strategy_name,
+        items,
+        experiment_name=experiment_name,
+        max_items=max_items,
+        use_llm=not no_llm,
+        dataset_name=dataset_name,
+    )
+
+    if result.get("tracked"):
+        click.echo(f"Experiment '{result['experiment_name']}' logged to Braintrust")
+    else:
+        exp = result["experiment_name"]
+        click.secho(
+            f"WARNING: Braintrust not active — experiment "
+            f"'{exp}' running locally only. Set "
+            "BRAINTRUST_API_KEY and install braintrust "
+            "to enable experiment tracking.",
+            fg="yellow",
+            err=True,
+        )
+        scores = result.get("scores", {})
+        if scores:
+            click.echo(f"\n{'Scorer':<25} {'Score':>6}  {'Details'}")
+            click.echo("-" * 65)
+            for name, score in sorted(scores.items()):
+                details = _format_metadata(score.metadata)
+                click.echo(f"{name:<25} {score.score:>6.3f}  {details}")
+            avg = sum(s.score for s in scores.values()) / len(scores)
+            click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+
+
+# ---------------------------------------------------------------------------
+# compare command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD).",
+)
+@click.option(
+    "--dataset",
+    "dataset_name",
+    default=None,
+    type=str,
+    help="Braintrust dataset name to use as input.",
+)
+@click.option(
+    "--max-items",
+    default=50,
+    type=int,
+    help="Maximum items to include.",
+)
+@click.option(
+    "--no-llm",
+    is_flag=True,
+    help="Skip LLM judge scorers (heuristic only).",
+)
+@click.argument("strategies", nargs=-1, required=True)
+def compare(
+    since: datetime,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+    strategies: tuple[str, ...],
+) -> None:
+    """Run multiple strategies as separate experiments for comparison.
+
+    Pass strategy names as arguments, e.g.: astral-eval compare baseline headlines-only
+    """
+    asyncio.run(_compare(since, dataset_name, max_items, no_llm, strategies))
+
+
+async def _compare(
+    since: datetime,
+    dataset_name: str | None,
+    max_items: int,
+    no_llm: bool,
+    strategies: tuple[str, ...],
+) -> None:
+    from .experiment import run_experiment
+
+    store = ContentStore()
+    items = store.list_items(since=since) if not dataset_name else []
+
+    if not dataset_name and not items:
+        click.echo("No items found.")
+        return
+
+    if not dataset_name:
+        click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
+
+    # One-time warning if Braintrust is not available
+    import os
+
+    from .experiment import _braintrust_available
+
+    if not _braintrust_available() or not os.environ.get("BRAINTRUST_API_KEY"):
+        click.secho(
+            "WARNING: Braintrust not active — comparisons "
+            "will run locally only. Set BRAINTRUST_API_KEY "
+            "and install braintrust to enable dashboard "
+            "comparison.",
+            fg="yellow",
+            err=True,
+        )
+
+    # Validate strategy names upfront
+    valid_strategies = []
+    for strategy_name in strategies:
+        if strategy_name not in STRATEGIES:
+            click.echo(f"Unknown strategy: {strategy_name}", err=True)
+        else:
+            valid_strategies.append(strategy_name)
+
+    if not valid_strategies:
+        click.echo("No valid strategies to compare.", err=True)
+        return
+
+    # Run experiments in parallel
+    coros = [
+        run_experiment(
+            name,
+            items,
+            max_items=max_items,
+            use_llm=not no_llm,
+            dataset_name=dataset_name,
+        )
+        for name in valid_strategies
+    ]
+    results = await asyncio.gather(*coros, return_exceptions=True)
+
+    # Print results in original order
+    for strategy_name, result in zip(valid_strategies, results, strict=True):
+        click.echo(f"\n--- {strategy_name} ---")
+        if isinstance(result, BaseException):
+            logger.error("Strategy %s failed: %s", strategy_name, result)
+            click.echo(f"  ERROR: {result}", err=True)
+            continue
+
+        if result.get("tracked"):
+            click.echo(f"Logged to Braintrust as '{result['experiment_name']}'")
+        else:
+            scores = result.get("scores", {})
+            if scores:
+                for name, score in sorted(scores.items()):
+                    click.echo(f"  {name:<23} {score.score:.3f}")
+                avg = sum(s.score for s in scores.values()) / len(scores)
+                click.echo(f"  {'Average':<23} {avg:.3f}")
+
+
+# ---------------------------------------------------------------------------
+# upload-dataset command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("upload-dataset")
+@click.option(
+    "--since",
+    required=True,
+    type=str,
+    callback=_parse_since,
+    help="Start date (YYYY-MM-DD) or days back (integer).",
+)
+@click.option(
+    "--until",
+    default=None,
+    type=str,
+    callback=_parse_since,
+    is_eager=False,
+    help="End date (YYYY-MM-DD) or days back (integer).",
+)
+@click.option(
+    "--name",
+    "dataset_name",
+    required=True,
+    type=str,
+    help="Braintrust dataset name.",
+)
+@click.option(
+    "--multi-week",
+    is_flag=True,
+    help="Split date range into 7-day rows (one row per week).",
+)
+def upload_dataset(
+    since: datetime,
+    until: datetime | None,
+    dataset_name: str,
+    multi_week: bool,
+) -> None:
+    """Upload a golden-week dataset to Braintrust for reproducible evals."""
+    if multi_week:
+        from .datasets import _week_ranges, upload_golden_set
+
+        if until is None:
+            until = datetime.now(UTC)
+        weeks = _week_ranges(since, until)
+        result = upload_golden_set(
+            weeks=weeks,
+            dataset_name=dataset_name,
+        )
+        click.echo(f"Uploaded dataset '{result['dataset_name']}'")
+        click.echo(f"  Total items: {result['total_items']}")
+        click.echo(f"  Rows: {result['rows']}")
+        for w in result["weeks"]:
+            click.echo(
+                f"    {w['week_start']} → {w['week_end']}: {w['item_count']} items"
+            )
+    else:
+        from .datasets import upload_golden_week
+
+        result = upload_golden_week(
+            since=since,
+            until=until,
+            dataset_name=dataset_name,
+        )
+        click.echo(f"Uploaded dataset '{result['dataset_name']}'")
+        click.echo(f"  Items: {result['item_count']}")
+        click.echo(f"  Date range: {result['date_range']}")
+        click.echo(f"  Categories: {result['categories']}")
+
+
+# ---------------------------------------------------------------------------
+# setup-datasets command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("setup-datasets")
+@click.option(
+    "--dry-run", is_flag=True, help="Show planned uploads without creating datasets."
+)
+def setup_datasets_cmd(dry_run: bool) -> None:
+    """Create standard dataset tiers (smoke, standard, full) in Braintrust."""
+    from .datasets import STANDARD_DATASETS, setup_standard_datasets
+
+    if dry_run:
+        click.echo("Dry run — would create:")
+        for name, windows in STANDARD_DATASETS.items():
+            click.echo(f"  {name}: {len(windows)} rows from {', '.join(windows)}")
+        click.echo()
+
+    uploaded = setup_standard_datasets(dry_run=dry_run)
+
+    if not dry_run:
+        click.echo("Created datasets:")
+        for name in uploaded:
+            click.echo(f"  {name}")
+
+
+# ---------------------------------------------------------------------------
+# seed-prompts command
+# ---------------------------------------------------------------------------
+
+
+@cli.command("seed-prompts")
+@click.option("--dry-run", is_flag=True, help="Show prompts without pushing.")
+def seed_prompts_cmd(dry_run: bool) -> None:
+    """Push hardcoded prompts to Braintrust as initial versions."""
+    from .seed_prompts import seed_prompts
+
+    seeded = seed_prompts(dry_run=dry_run)
+
+    if dry_run:
+        click.echo("Dry run — would seed:")
+    else:
+        click.echo("Seeded prompts:")
+    for slug in seeded:
+        click.echo(f"  {slug}")
+
+
+# ---------------------------------------------------------------------------
+# score command
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.argument("draft_file", type=click.Path(exists=True))
+@click.option(
+    "--since",
+    default="7",
+    type=str,
+    callback=_parse_since,
+    help="Days back (integer) or start date (YYYY-MM-DD) for input items.",
+)
+def score(draft_file: str, since: datetime) -> None:
+    """Score an existing draft JSON file with heuristic scorers.
+
+    Results are printed and optionally logged to Braintrust.
+    """
+    from astral_core.scoring import HEURISTIC_SCORERS
+
+    raw = Path(draft_file).read_text()
+    draft = NewsletterDraft.model_validate_json(raw)
+    click.echo(f"Loaded draft from {draft_file}")
+
+    store = ContentStore()
+    items = store.list_items(since=since)
+    click.echo(f"Found {len(items)} input items")
+
+    output = draft.model_dump(mode="json")
+    input_data = [item.model_dump(mode="json") for item in items]
+
+    click.echo(f"\n{'Scorer':<25} {'Score':>6}  {'Details'}")
+    click.echo("-" * 65)
+
+    bt_scores: dict[str, float] = {}
+    for scorer in HEURISTIC_SCORERS:
+        result = scorer(output=output, input=input_data)
+        if result is not None:
+            details = _format_metadata(result.metadata)
+            click.echo(f"{result.name:<25} {result.score:>6.3f}  {details}")
+            bt_scores[result.name] = result.score
+
+    if bt_scores:
+        avg = sum(bt_scores.values()) / len(bt_scores)
+        click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+
+    # Log to Braintrust if available
+    try:
+        import os
+
+        import braintrust
+
+        if os.environ.get("BRAINTRUST_API_KEY"):
+            bt_logger = braintrust.init_logger(project="astral-index")
+            bt_logger.log(
+                input={"draft_file": draft_file, "since": since.isoformat()},
+                scores=bt_scores,
+            )
+            click.echo("\nScores logged to Braintrust")
+    except Exception:
+        pass

@@ -9,17 +9,35 @@ from typing import Any
 from astral_author.models import NewsletterDraft
 from astral_core import ContentItem
 
-from .scorers.heuristic import category_coverage, link_count, source_diversity
+from .scorers.heuristic import (
+    category_coverage,
+    link_count,
+    off_topic_leakage,
+    section_balance,
+    semantic_dedup,
+    source_diversity,
+)
 from .scorers.llm_judges import (
     coherence_flow,
     coverage_adequacy,
     editorial_quality,
+    introduction_quality,
     link_quality,
     readability_fit,
+    summary_faithfulness,
+    summary_informativeness,
+    tone_consistency,
 )
 from .scores import Score
 
-HEURISTIC_SCORERS = [source_diversity, category_coverage, link_count]
+HEURISTIC_SCORERS = [
+    source_diversity,
+    category_coverage,
+    link_count,
+    section_balance,
+    semantic_dedup,
+    off_topic_leakage,
+]
 LLM_SCORERS = [
     editorial_quality,
     coverage_adequacy,
@@ -27,7 +45,13 @@ LLM_SCORERS = [
     link_quality,
     coherence_flow,
 ]
-ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS
+THINKING_LLM_SCORERS = [
+    summary_faithfulness,
+    summary_informativeness,
+    introduction_quality,
+    tone_consistency,
+]
+ALL_SCORERS = HEURISTIC_SCORERS + LLM_SCORERS + THINKING_LLM_SCORERS
 
 
 async def run_quality_eval(
@@ -55,7 +79,7 @@ async def run_quality_eval(
     # Run LLM judges (async, concurrent)
     if use_llm:
         llm_tasks = []
-        for scorer in LLM_SCORERS:
+        for scorer in LLM_SCORERS + THINKING_LLM_SCORERS:
             if inspect.iscoroutinefunction(scorer):
                 llm_tasks.append(scorer(output=output, input=input_data))
 

@@ -8,10 +8,10 @@ from astral_eval.runner import HEURISTIC_SCORERS, run_quality_eval
 from astral_eval.scores import Score
 
 
-async def test_heuristic_only_returns_three_scores(
+async def test_heuristic_only_returns_all_scores(
     sample_items: list[ContentItem],
 ) -> None:
-    """run_quality_eval(use_llm=False) returns exactly the 3 heuristic scores."""
+    """run_quality_eval(use_llm=False) returns all heuristic scores."""
     pipeline = build_strategy("headlines-only")
     draft = await pipeline.run(sample_items, max_items=50)
 
@@ -32,7 +32,14 @@ async def test_heuristic_score_names_match(
 
     scores = await run_quality_eval(draft, sample_items, use_llm=False)
 
-    expected = {"source_diversity", "category_coverage", "link_count"}
+    expected = {
+        "source_diversity",
+        "category_coverage",
+        "link_count",
+        "section_balance",
+        "semantic_dedup",
+        "off_topic_leakage",
+    }
     assert set(scores.keys()) == expected
 
 

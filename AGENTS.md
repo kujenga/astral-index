@@ -37,13 +37,35 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - Basic dedup: scrapers check `store.exists(id)` before saving.
 - **Authoring pipeline** (`astral_author`) — four-stage pipeline (rank → cluster → summarize → draft) with swappable implementations via Protocol interfaces.
 - **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
-- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM).
+- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM); "wide-coverage" uses more deep-dive sections (max_deep_dives=5, min_group_size=1); "recency-biased" weights freshness heavily (w_recency=0.50).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
-- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 3 heuristic scorers (source diversity, category coverage, link count) + 5 LLM judges (editorial quality, coverage adequacy, readability, link quality, coherence). Scorers return a `Score` dataclass (0.0–1.0). LLM judges use Claude Haiku with A–D rubrics; optional Braintrust tracing via `wrap_anthropic` when `BRAINTRUST_API_KEY` is set.
-- **Score** (`astral_eval.scores`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Decoupled from any eval framework.
+- **`get_llm_client`** (`astral_core.llm`) — shared factory returning an `AsyncAnthropic` client (or `None` when `ANTHROPIC_API_KEY` is unset). Automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set. All LLM callsites (classifier, summarizer, drafter, eval judges) use this instead of creating clients directly.
+- **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 6 heuristic scorers + 9 LLM judges. The 5 standard judges (editorial quality, coverage adequacy, readability, link quality, coherence) use GPT-4o-mini via Braintrust AI Proxy (or Claude Haiku fallback) with A–D rubrics. The 4 thinking-mode judges (summary faithfulness, summary informativeness, introduction quality, tone consistency) use Claude Sonnet with extended thinking and 3-call ensemble averaging for reduced variance. Scorers return a `Score` dataclass (0.0–1.0).
+- **Score** (`astral_core.scoring`) — lightweight dataclass: `name`, `score` (0.0–1.0), `metadata` dict. Lives in core so both eval and author can import it.
+- **Heuristic scorers** (`astral_core.scoring`) — the 3 heuristic scorer implementations live in core (re-exported by `astral_eval.scorers.heuristic` for backward compat). This avoids a circular dep so the author pipeline can run online scoring.
 - **Eval runner** (`astral_eval.runner`) — `run_quality_eval(draft, items, use_llm=True)` orchestrates heuristic (sync) and LLM (async concurrent) scorers.
+- **Braintrust experiment runner** (`astral_eval.experiment`) — `run_experiment()` wraps `braintrust.EvalAsync()` with adapted scorers. Falls back to local `run_quality_eval()` when Braintrust is not available.
+- **Braintrust scorer adapters** (`astral_eval.braintrust_scorers`) — `wrap_scorer()` bridges astral-eval's `(output=, input=)` signature to Braintrust's `(input, output)` signature.
+- **Standard datasets** (`astral_eval.datasets`) — three-tier golden datasets for reproducible Braintrust experiments: `golden-smoke` (1 row, fast sanity check), `golden-standard` (4 rows, default for iteration), `golden-full` (8 rows, CI regression). Created via `setup-datasets` command. `upload_golden_week()` and `upload_golden_set()` handle the underlying uploads.
+- **Prompt management** (`astral_core.prompts`) — `load_prompt(slug, fallback)` fetches versioned prompts from Braintrust when available, with zero-change fallback to hardcoded strings. All 4 LLM prompts (item-summarizer, prose-generator, newsletter-intro, category-classifier) use this.
+- **Online scoring** — `DraftPipeline.run()` automatically runs heuristic scorers after every draft and logs scores to the current Braintrust span.
+
+### Braintrust integration
+
+Braintrust is wired into the project at multiple layers. Everything degrades gracefully when `BRAINTRUST_API_KEY` is unset — hardcoded fallbacks are used and no errors are raised (only a one-time warning from `get_llm_client()`).
+
+**Touch points — know these when modifying LLM or eval code:**
+
+1. **Tracing** — `get_llm_client()` in `astral_core.llm` wraps the Anthropic client with `braintrust.wrap_anthropic()`. Every LLM call (classify, summarize, draft, judge) is automatically traced. No per-callsite changes needed.
+2. **Prompts** — `load_prompt(slug, fallback)` in `astral_core.prompts` fetches versioned prompts from Braintrust. The 4 prompt slugs are: `item-summarizer`, `prose-generator`, `newsletter-intro`, `category-classifier`. When adding a new LLM prompt, add a slug and pass the hardcoded string as `fallback`.
+3. **Online scoring** — `DraftPipeline.run()` runs heuristic scorers after every draft and logs scores to the active Braintrust span. The scorers live in `astral_core.scoring` (not `astral_eval`) to avoid a circular dependency.
+4. **Experiments** — `run_experiment()` in `astral_eval.experiment` wraps `braintrust.EvalAsync()`. Pass a `Dataset` object (not `list(dataset)`) so the SDK links the experiment to the dataset. Falls back to the local `run_quality_eval()` runner when Braintrust is unavailable.
+5. **Scorer adapters** — `wrap_scorer()` in `astral_eval.braintrust_scorers` bridges the astral-eval scorer signature `(*, output=, input=)` to Braintrust's `(input, output, expected=None)`. When adding a new scorer, wrap it and add to `ALL_BT_SCORERS`.
+6. **Datasets** — Three standard tiers (`golden-smoke`, `golden-standard`, `golden-full`) defined in `STANDARD_DATASETS` in `astral_eval.datasets`. Created via `setup-datasets` CLI command. Quality iteration uses `--dataset` (linked experiments); operational use (`/publish`) uses `--since`. `upload_golden_set()` handles multi-row uploads; each row is one date window.
+7. **LLM judges** — 9 total judges in `astral_eval.scorers.llm_judges`. The 5 standard judges route through Braintrust AI Proxy (GPT-4o-mini) when available, falling back to Claude Haiku. The 4 thinking-mode judges (summary_faithfulness, summary_informativeness, introduction_quality, tone_consistency) use Claude Sonnet with extended thinking and 3-call ensemble median aggregation — Anthropic SDK only, no proxy path.
+8. **CI** — `.github/workflows/eval.yml` runs heuristic evals on PRs touching `packages/author/` or `packages/eval/`. Add the `eval-full` label for LLM judges.
 
 ## Public repository
 
@@ -60,6 +82,14 @@ This repo is public. Keep this in mind:
 - Always use `uv run` to execute Python commands — never call `python` or `python3` directly
 - Workspace packages depend on each other via `tool.uv.sources` (e.g., `astral-core = { workspace = true }` in astral-ingest's pyproject.toml)
 - Scraped data lives in `data/` (gitignored) — never commit it
+
+### Shared helpers in `astral_core`
+
+Use these instead of rolling your own:
+
+- **`bootstrap()`** (`astral_core.bootstrap`) — call once at CLI startup. Loads `.env` via `python-dotenv` and silences known-harmless warnings. Every CLI entry point (ingest, author, serve, eval) already calls this.
+- **`get_llm_client()`** (`astral_core.llm`) — the **only** way to create an Anthropic client. Returns `AsyncAnthropic` or `None`. Never instantiate `anthropic.AsyncAnthropic` directly — this factory handles API key checks, graceful degradation, and Braintrust tracing. When adding a new LLM callsite, import from `astral_core` and check for `None` before calling.
+- **`load_prompt(slug, fallback)`** (`astral_core.prompts`) — load a versioned prompt from Braintrust, or return the fallback string. Use this for all system prompts sent to LLMs. The fallback is always the hardcoded constant (e.g., `_ITEM_SYSTEM`), so behavior is unchanged without Braintrust.
 
 ### uv
 
@@ -132,6 +162,39 @@ uv run --package astral-eval astral-eval quality --since 30 --draft-file data/dr
 
 # Write evaluation results to file
 uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
+
+# Run a Braintrust-tracked experiment (needs BRAINTRUST_API_KEY)
+uv run --package astral-eval astral-eval experiment --since 7 --strategy headlines-only --no-llm
+uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
+
+# Compare strategies in parallel (separate experiments per strategy)
+uv run --package astral-eval astral-eval compare baseline headlines-only --since 7
+uv run --package astral-eval astral-eval compare baseline wide-coverage recency-biased --dataset golden-full --no-llm
+
+# Create standard dataset tiers (smoke, standard, full) in Braintrust
+uv run --package astral-eval astral-eval setup-datasets
+uv run --package astral-eval astral-eval setup-datasets --dry-run
+
+# Upload a custom dataset for reproducible evals
+uv run --package astral-eval astral-eval upload-dataset --since 2026-02-22 --name my-dataset
+
+# Upload a multi-week custom dataset (one row per week)
+uv run --package astral-eval astral-eval upload-dataset \
+    --since 2026-02-17 --until 2026-03-10 --name my-multiweek --multi-week
+
+# Score an existing draft file (heuristic only, optional Braintrust logging)
+uv run --package astral-eval astral-eval score data/drafts/draft.json --since 7
+
+# Push hardcoded prompts to Braintrust as initial versions
+uv run --package astral-eval astral-eval seed-prompts
+uv run --package astral-eval astral-eval seed-prompts --dry-run
+
+# Run the full weekly pipeline (scrape → expand → classify → draft → eval)
+scripts/weekly.sh
+scripts/weekly.sh --dry-run              # preview mode, minimal LLM cost
+scripts/weekly.sh --send                 # include Buttondown delivery
+scripts/weekly.sh --since 14             # two-week lookback
+scripts/weekly.sh --no-expand            # skip expansion (already expanded)
 ```
 
 ### Testing
@@ -172,14 +235,65 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
-- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables automatic trace logging for LLM judge calls via `wrap_anthropic`. Install with `uv sync --all-packages --extra braintrust`.
+- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables: (1) automatic trace logging for all LLM calls via `wrap_anthropic`, (2) experiment tracking via `braintrust.EvalAsync()`, (3) standard golden datasets for reproducible evals, (4) versioned prompt loading via `load_prompt()`, (5) online scoring logged to spans, (6) LLM judge routing via AI Proxy (GPT-4o-mini). Install with `uv sync --all-packages --extra braintrust`.
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
+
+## Operator workflow
+
+See **`WORKFLOW.md`** for the week-to-week publishing workflow: ingest → author → evaluate → deliver. Also covers Braintrust quality iteration (standard datasets, experiments, strategy comparison).
+
+## Skills
+
+Project-local Claude Code skills in `.claude/skills/` automate key development workflows. Invoke with `/<name>` in Claude Code.
+
+### `/publish` — Intelligent Weekly Publishing
+
+Replaces `scripts/weekly.sh` with agent-driven pipeline execution. Runs the full ingest-author-eval-deliver pipeline with quality gates at three checkpoints: strategy selection, quality score threshold, and send confirmation. Supports `--since N`, `--dry-run`, `--send`, `--strategy X`.
+
+### `/iterate` — Quality Improvement Dev Loop
+
+The core build loop: diagnose a weak scorer, propose a targeted change, implement it, run a Braintrust experiment, and keep or revert based on results. Each iteration is atomic (commit on success, revert on failure). Chain multiple runs to compound improvements. Accepts a scorer name, dataset name, or free-text goal.
+
+### `/audit-eval` — Evaluation System QA
+
+Meta-quality check: generates a test draft, runs all scorers, then independently assesses quality to find blind spots (dimensions with no scorer), miscalibrations (scorer disagrees with reality), and silent failures (scorers returning None). Writes `data/eval/audit_report.md` with prioritized improvement targets for `/iterate`.
+
+### `/brainstorm` — Strategic Quality Brainstorming
+
+Read-only analysis: examines source coverage, pipeline stages, strategy configs, and eval gaps. Proposes new sources, pipeline improvements, strategies, and scorers — prioritized by impact and effort. Output feeds into `/iterate` as actionable targets.
+
+### `/autoiterate` — Autonomous Quality Loop
+
+Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch). Loops: ideate → modify → experiment → keep/revert. No human confirmation gates — runs until interrupted, bounded via `/loop N`, or until a finish condition is met. Each iteration is atomic (commit before verify, revert on regression). Results logged to `data/eval/autoiterate_log.md`.
+
+**Modes:** `--mode single` targets one scorer. `--mode sweep` (default) rotates through all scorers, weakest first, with stuck-detection after 3 consecutive failures.
+
+**Scope:** `--scope author` (default), `prompts`, `strategies`, `eval`, `sources`, or `full` (all of the above). In `full` scope the agent picks the highest-impact lever for each target.
+
+**Finish conditions:** `--until "all scorers above 0.6"`, `--until "average score exceeds 0.75"`, `--until "no scorer below 0.4"`, etc. Evaluated mechanically after each iteration.
+
+**Parallel mode (agent teams):** See `.claude/skills/autoiterate/TEAM.md` for a ready-to-paste prompt that spawns 3 teammates in git worktrees, each trying a different approach. The lead merges the winner each generation. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (set in `.claude/settings.json`).
+
+### Skill composition
+
+```
+/brainstorm ──(ideas)──> /iterate ──(code changes)──> /publish
+                              ^                            |
+                              |                            |
+/audit-eval ──(scorer fixes)──┘       (low scores) ───────┘
+
+/autoiterate ── autonomous loop (serial or parallel via agent teams)
+     ├── --mode sweep: rotates through weakest scorers
+     ├── --scope full: touches pipeline code, prompts, strategies, eval, sources
+     └── --until "condition": stops when quality target is met
+```
 
 ## Keeping docs current
 
 When adding a new package, feature, or pipeline stage, update these files:
 
 - **`AGENTS.md`** (this file) — add key concepts, CLI commands, and credentials. This is the primary reference for agents working in the codebase.
+- **`WORKFLOW.md`** — update if the operator-facing workflow changes (new CLI commands, new pipeline steps, new credentials).
 - **`ARCHITECTURE.md`** — update the package breakdown, data flow diagram, and roadmap. This is the high-level design document for humans. Mark completed phases as "Done" and remove "Not yet implemented" / `(TODO)` labels.
 - **Package `README.md`** — each package under `packages/` should have a README describing its scorers, commands, workflow, or API surface.
 

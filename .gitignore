@@ -1,6 +1,8 @@
 .claude/*.local.*
-__pycache__/
+.claude/worktrees/
+
 .env
+__pycache__/
 
 # Scraped data (generated at runtime)
 data/

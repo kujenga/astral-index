@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  # lxml (via trafilatura) requires native libs to build from source
+  SYSTEM_DEPS: libxml2-dev libxslt-dev
+
+jobs:
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uvx ruff check .
+
+      - run: uvx ruff format --check .
+
+  typecheck:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: sudo apt-get update && sudo apt-get install -y $SYSTEM_DEPS
+
+      - run: uv sync --all-packages
+
+      - run: uv run ty check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: sudo apt-get update && sudo apt-get install -y $SYSTEM_DEPS
+
+      - run: uv sync --all-packages
+
+      - run: uv run pytest -v
