@@ -39,7 +39,6 @@ _SOURCE_TIERS: dict[str, float] = {
     "Via Satellite": 0.80,
     "NASA Space Station Blog": 0.80,
     "NASA Artemis Blog": 0.80,
-    "NASA Earth Observatory": 0.80,
     "ISS National Lab": 0.75,
     "Canadian Space Agency": 0.75,
     "UK Space Agency Blog": 0.70,
