@@ -22,7 +22,7 @@ __all__ = [
     "category_coverage",
     "content_originality",
     "intro_quality",
-    "link_count",
+    "link_count",  # kept for backward compat, removed from active scorer lists
     "off_topic_leakage",
     "section_balance",
     "semantic_dedup",

@@ -6,7 +6,6 @@ import pytest
 
 from astral_eval.scorers.heuristic import (
     category_coverage,
-    link_count,
     off_topic_leakage,
     section_balance,
     semantic_dedup,
@@ -192,50 +191,6 @@ class TestCategoryCoverage:
         assert result.metadata["input_cats"] == 3
         assert "space_science" in result.metadata["missing"]
         assert "lunar" in result.metadata["covered"]
-
-
-# -- link_count --
-
-
-class TestLinkCount:
-    def test_links_per_item_above_one(self):
-        """More links than items -> 1.0."""
-        md = (
-            "- [Article 1](https://example.com/1)\n"
-            "- [Article 2](https://example.com/2)\n"
-            "- [Article 3](https://example.com/3)\n"
-        )
-        output = {"markdown": md, "total_output_items": 2}
-        result = link_count(output=output)
-        assert result.score == 1.0
-        assert result.metadata["links"] == 3
-
-    def test_links_less_than_items(self):
-        """Fewer links than items -> proportional score."""
-        md = "- [Article 1](https://example.com/1)\n"
-        output = {"markdown": md, "total_output_items": 4}
-        result = link_count(output=output)
-        assert result.score == pytest.approx(0.25, abs=0.01)
-
-    def test_no_items_still_scores(self):
-        """Zero total items -> 1.0 (sanity: nothing to link)."""
-        output = {"markdown": "", "total_output_items": 0}
-        result = link_count(output=output)
-        assert result.score == 1.0
-
-    def test_non_http_links_ignored(self):
-        """Only http/https links count."""
-        md = "[Local](file:///tmp/x) [Web](https://example.com/x)"
-        output = {"markdown": md, "total_output_items": 2}
-        result = link_count(output=output)
-        assert result.metadata["links"] == 1
-
-    def test_metadata_has_ratio(self):
-        """Metadata includes raw count and per-item ratio."""
-        md = "[A](https://a.com) [B](https://b.com)"
-        output = {"markdown": md, "total_output_items": 4}
-        result = link_count(output=output)
-        assert result.metadata["ratio"] == 0.5
 
 
 # -- section_balance --

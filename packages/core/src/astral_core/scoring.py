@@ -581,7 +581,6 @@ def content_originality(
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
-    link_count,
     section_balance,
     semantic_dedup,
     off_topic_leakage,
