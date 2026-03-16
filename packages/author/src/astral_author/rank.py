@@ -148,7 +148,7 @@ class EngagementRanker:
         # Discount social-media items — tweets and Reddit posts are
         # lower-value than original reporting articles
         if item.content_type in (ContentType.TWEET, ContentType.REDDIT_POST):
-            base *= 0.7
+            base *= 0.5
         return base
 
     async def rank(
