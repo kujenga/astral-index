@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 braintrust = ["braintrust>=0.0.160", "openai>=1.0"]
+phoenix = ["arize-phoenix-client>=1.0", "openai>=1.0"]
 
 [project.scripts]
 astral-eval = "astral_eval.cli:cli"

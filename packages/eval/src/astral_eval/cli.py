@@ -248,15 +248,13 @@ async def _experiment(
     max_items: int,
     no_llm: bool,
 ) -> None:
-    from .experiment import run_experiment
+    from .experiment import _backend_available, run_experiment
 
     # Load local items (needed even with dataset, for item count display)
     items: list = []
     if not dataset_name:
-        # Warn about unlinked experiments when Braintrust is available
-        import os
-
-        if os.environ.get("BRAINTRUST_API_KEY"):
+        # Warn about unlinked experiments when a backend is available
+        if _backend_available():
             click.secho(
                 "WARNING: Running without --dataset. Results will be unlinked. "
                 "Use --dataset golden-standard for reproducible iteration.",
@@ -280,13 +278,13 @@ async def _experiment(
     )
 
     if result.get("tracked"):
-        click.echo(f"Experiment '{result['experiment_name']}' logged to Braintrust")
+        click.echo(f"Experiment '{result['experiment_name']}' logged to backend")
     else:
         exp = result["experiment_name"]
         click.secho(
-            f"WARNING: Braintrust not active — experiment "
+            f"WARNING: No observability backend active — experiment "
             f"'{exp}' running locally only. Set "
-            "BRAINTRUST_API_KEY and install braintrust "
+            "BRAINTRUST_API_KEY or PHOENIX_COLLECTOR_ENDPOINT "
             "to enable experiment tracking.",
             fg="yellow",
             err=True,
@@ -367,17 +365,14 @@ async def _compare(
     if not dataset_name:
         click.echo(f"Found {len(items)} items (since {since.strftime('%Y-%m-%d')})")
 
-    # One-time warning if Braintrust is not available
-    import os
+    # One-time warning if no backend is available
+    from .experiment import _backend_available
 
-    from .experiment import _braintrust_available
-
-    if not _braintrust_available() or not os.environ.get("BRAINTRUST_API_KEY"):
+    if not _backend_available():
         click.secho(
-            "WARNING: Braintrust not active — comparisons "
-            "will run locally only. Set BRAINTRUST_API_KEY "
-            "and install braintrust to enable dashboard "
-            "comparison.",
+            "WARNING: No observability backend active — comparisons "
+            "will run locally only. Set BRAINTRUST_API_KEY or "
+            "PHOENIX_COLLECTOR_ENDPOINT to enable dashboard comparison.",
             fg="yellow",
             err=True,
         )
@@ -634,18 +629,15 @@ def score(draft_file: str, since: datetime) -> None:
         avg = sum(bt_scores.values()) / len(bt_scores)
         click.echo(f"\n{'Average':<25} {avg:>6.3f}")
 
-    # Log to Braintrust if available
+    # Log to observability backend if available
     try:
-        import os
+        from astral_core.observability import get_backend_name, get_tracing
 
-        import braintrust
-
-        if os.environ.get("BRAINTRUST_API_KEY"):
-            bt_logger = braintrust.init_logger(project="astral-index")
-            bt_logger.log(
+        if get_backend_name() != "noop":
+            get_tracing().log_event(
                 input={"draft_file": draft_file, "since": since.isoformat()},
                 scores=bt_scores,
             )
-            click.echo("\nScores logged to Braintrust")
+            click.echo("\nScores logged to observability backend")
     except Exception:
         pass

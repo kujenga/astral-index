@@ -1,8 +1,8 @@
-"""Braintrust experiment runner with fallback to the local eval runner.
+"""Experiment runner with fallback to the local eval runner.
 
-Wraps the existing scorer infrastructure into ``braintrust.Eval()`` for
-experiment tracking, while keeping the local ``run_quality_eval()`` path
-for environments without Braintrust.
+Delegates to the active observability backend for experiment tracking,
+while keeping the local ``run_quality_eval()`` path for environments
+without a backend configured.
 """
 
 from __future__ import annotations
@@ -15,17 +15,14 @@ import click
 
 from astral_author.pipeline import build_strategy
 from astral_core import ContentItem
+from astral_core.observability import get_backend_name, get_datasets, get_experiments
 
 logger = logging.getLogger(__name__)
 
 
-def _braintrust_available() -> bool:
-    try:
-        import braintrust  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
+def _backend_available() -> bool:
+    """Check if an observability backend is configured for experiments."""
+    return get_backend_name() not in ("noop",)
 
 
 async def run_experiment(
@@ -37,17 +34,19 @@ async def run_experiment(
     use_llm: bool = True,
     dataset_name: str | None = None,
 ) -> dict[str, Any]:
-    """Run a Braintrust-tracked experiment, or fall back to local eval.
+    """Run a tracked experiment, or fall back to local eval.
 
     Returns a dict with ``scores`` (dict[str, Score]) and ``experiment_name``.
     """
     if experiment_name is None:
         experiment_name = f"{strategy_name}-{date.today().isoformat()}"
 
-    if not _braintrust_available():
+    backend_name = get_backend_name()
+    if backend_name == "noop":
         logger.warning(
-            "braintrust package not installed — running local eval only. "
-            "Install with: uv sync --all-packages --extra braintrust"
+            "No observability backend configured — running local eval only. "
+            "Set BRAINTRUST_API_KEY or PHOENIX_COLLECTOR_ENDPOINT to enable "
+            "experiment tracking."
         )
         local_items, expected = _resolve_local_dataset(items, dataset_name=dataset_name)
         return await _run_local(
@@ -59,24 +58,7 @@ async def run_experiment(
             expected=expected,
         )
 
-    import os
-
-    if not os.environ.get("BRAINTRUST_API_KEY"):
-        logger.warning(
-            "BRAINTRUST_API_KEY not set — running local eval only. "
-            "Set this environment variable to enable Braintrust experiment tracking."
-        )
-        local_items, expected = _resolve_local_dataset(items, dataset_name=dataset_name)
-        return await _run_local(
-            strategy_name,
-            local_items,
-            max_items=max_items,
-            use_llm=use_llm,
-            experiment_name=experiment_name,
-            expected=expected,
-        )
-
-    return await _run_braintrust(
+    return await _run_tracked(
         strategy_name,
         items,
         experiment_name=experiment_name,
@@ -177,7 +159,7 @@ async def _run_local(
     }
 
 
-async def _run_braintrust(
+async def _run_tracked(
     strategy_name: str,
     items: list[ContentItem],
     *,
@@ -186,53 +168,39 @@ async def _run_braintrust(
     use_llm: bool,
     dataset_name: str | None,
 ) -> dict[str, Any]:
-    """Run experiment via braintrust.Eval() with wrapped scorers."""
-    import braintrust
-
+    """Run experiment via the active observability backend."""
     from .braintrust_scorers import ALL_BT_SCORERS, HEURISTIC_BT_SCORERS
 
     scorers = ALL_BT_SCORERS if use_llm else HEURISTIC_BT_SCORERS
 
-    # Load data — either from a Braintrust dataset or local items.
-    # Pass Dataset objects directly so EvalAsync links the experiment to the
-    # dataset and handles iteration internally.
+    # Load data — either from a backend dataset or local items.
     if dataset_name:
-        data = braintrust.init_dataset(project="astral-index", name=dataset_name)
-        # Verify dataset has rows — fail early instead of silently producing 0it
-        row_count = len(list(data.fetch()))
-        if row_count == 0:
+        datasets = get_datasets()
+        data = datasets.init_dataset(project="astral-index", name=dataset_name)
+        rows = datasets.fetch_rows(data)
+        if not rows:
             raise click.ClickException(
                 f"Dataset '{dataset_name}' is empty (0 rows). "
                 "Upload data first with: "
                 "astral-eval upload-dataset --since <date> "
                 "--name <name>"
             )
-        logger.info("Loaded dataset '%s' with %d row(s)", dataset_name, row_count)
+        logger.info("Loaded dataset '%s' with %d row(s)", dataset_name, len(rows))
     else:
-        # Each test case is one full week → 1-row eval
         input_data = [item.model_dump(mode="json") for item in items]
         data = [{"input": input_data}]
 
-    # The task function: run the authoring pipeline and return serialized draft.
-    # Returns (output, expected) tuple when expected is present in the dataset
-    # row, so Braintrust passes it through to scorers.
-    async def task(input: Any, expected: Any = None, hooks: Any = None) -> Any:
-        # input is a list of ContentItem dicts; reconstruct
+    async def task(input: Any, hooks: Any = None) -> dict[str, Any]:
         task_items = [ContentItem.model_validate(d) for d in input]
         pipeline = build_strategy(strategy_name)
         draft = await pipeline.run(task_items, max_items=max_items)
         return draft.model_dump(mode="json")
 
-    result = await braintrust.EvalAsync(
-        "astral-index",
+    experiments = get_experiments()
+    return await experiments.run_experiment(
+        project="astral-index",
         experiment_name=experiment_name,
         data=data,
         task=task,
-        scores=scorers,
+        scorers=scorers,
     )
-
-    return {
-        "experiment_name": experiment_name,
-        "result": result,
-        "tracked": True,
-    }
