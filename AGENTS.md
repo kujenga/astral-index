@@ -236,7 +236,7 @@ All credentials are stored in `.env` (gitignored) and loaded automatically via `
 - **Twitter/X**: `SOCIALDATA_API_KEY` — Bearer token for the SocialData.tools API. Scraper skips gracefully when not set.
 - **LLM**: `ANTHROPIC_API_KEY` — for classification (Claude Haiku) and authoring (Claude Sonnet summaries/prose). Both degrade gracefully without it.
 - **Buttondown**: `BUTTONDOWN_API_KEY` — for newsletter delivery via the Buttondown API. The `draft` and `send` commands require this; `status` works without it.
-- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables: (1) automatic trace logging for all LLM calls via `wrap_anthropic`, (2) experiment tracking via `braintrust.EvalAsync()`, (3) standard golden datasets for reproducible evals, (4) versioned prompt loading via `load_prompt()`, (5) online scoring logged to spans, (6) LLM judge routing via AI Proxy (GPT-4o-mini). Install with `uv sync --all-packages --extra braintrust`.
+- **Braintrust**: `BRAINTRUST_API_KEY` — optional, enables: (1) experiment tracking via `braintrust.EvalAsync()`, (2) standard golden datasets for reproducible evals, (3) versioned prompt loading via `load_prompt()`, (4) online scoring logged to spans, (5) LLM judge routing via AI Proxy (GPT-4o-mini). Install with `uv sync --all-packages --extra braintrust`. `BRAINTRUST_TRACE=1` — opt-in, enables automatic tracing of all LLM calls via `wrap_anthropic` (creates spans that count toward free-tier limits; off by default).
 - **Bluesky**: No credentials needed — uses public AT Protocol AppView API.
 
 ## Operator workflow
