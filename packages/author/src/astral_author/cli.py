@@ -15,6 +15,31 @@ from astral_core import ContentItem, ContentStore, bootstrap
 from .pipeline import STRATEGIES, build_strategy
 
 
+def _previous_weekday(d: date, weekday: int) -> date:
+    """Return the most recent date with the given weekday (0=Mon, 2=Wed, etc.).
+
+    If *d* is already on that weekday, returns *d* itself.
+    """
+    days_back = (d.weekday() - weekday) % 7
+    return d - timedelta(days=days_back)
+
+
+def _wednesday_window() -> tuple[datetime, datetime, date]:
+    """Compute the default Wed-to-Wed content window.
+
+    Returns (since, before, issue_date) where:
+      - before = most recent Wednesday (inclusive of today if Wednesday)
+      - since  = the Wednesday one week before *before*
+      - issue_date = *before* (the Wednesday at the end of the window)
+    """
+    today = date.today()
+    end_wed = _previous_weekday(today, 2)  # Wednesday = 2
+    start_wed = end_wed - timedelta(days=7)
+    since = datetime.combine(start_wed, datetime.min.time(), tzinfo=UTC)
+    before = datetime.combine(end_wed, datetime.min.time(), tzinfo=UTC)
+    return since, before, end_wed
+
+
 def _parse_since(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
     """Click callback: accept integer days-back or YYYY-MM-DD date string."""
     try:
@@ -63,17 +88,21 @@ def cli() -> None:
 @cli.command()
 @click.option(
     "--since",
-    default="7",
+    default=None,
     type=str,
-    callback=_parse_since,
-    help="Days back (integer) or start date (YYYY-MM-DD).",
+    help="Days back (integer) or start date (YYYY-MM-DD). Default: previous Wednesday.",
 )
 @click.option(
     "--before",
     default=None,
     type=str,
-    callback=_parse_before,
-    help="Exclusive upper-bound date (YYYY-MM-DD).",
+    help="Exclusive upper-bound date (YYYY-MM-DD). Default: most recent Wednesday.",
+)
+@click.option(
+    "--issue-date",
+    default=None,
+    type=str,
+    help="Issue date (YYYY-MM-DD). Default: ending Wednesday.",
 )
 @click.option(
     "--strategy",
@@ -94,23 +123,57 @@ def cli() -> None:
     "output_path",
     default=None,
     type=click.Path(),
-    help="Write markdown to file instead of stdout.",
+    help="Write markdown to file instead of a staging directory.",
 )
 def draft(
-    since: datetime,
-    before: datetime | None,
+    since: str | None,
+    before: str | None,
+    issue_date: str | None,
     strategy_name: str,
     max_items: int,
     dry_run: bool,
     output_path: str | None,
 ) -> None:
-    """Generate a newsletter draft from stored items."""
-    asyncio.run(_draft(since, before, strategy_name, max_items, dry_run, output_path))
+    """Generate a newsletter draft from stored items.
+
+    Default cadence is Wednesday-to-Wednesday. Without --since/--before, uses
+    the most recent Wed-to-Wed window with the issue dated on the ending Wednesday.
+    """
+    # Resolve the content window and issue date
+    if since is None and before is None:
+        # Default: Wed-to-Wed window
+        since_dt, before_dt, default_issue_date = _wednesday_window()
+        resolved_issue_date = (
+            date.fromisoformat(issue_date) if issue_date else default_issue_date
+        )
+    else:
+        # Explicit dates — use the parse callbacks manually
+        since_dt = _parse_since(None, None, since or "7")  # type: ignore[arg-type]
+        before_dt = _parse_before(None, None, before)  # type: ignore[arg-type]
+        if issue_date:
+            resolved_issue_date = date.fromisoformat(issue_date)
+        elif before_dt:
+            resolved_issue_date = before_dt.date()
+        else:
+            resolved_issue_date = date.today()
+
+    asyncio.run(
+        _draft(
+            since_dt,
+            before_dt,
+            resolved_issue_date,
+            strategy_name,
+            max_items,
+            dry_run,
+            output_path,
+        )
+    )
 
 
 async def _draft(
     since: datetime,
     before: datetime | None,
+    issue_date: date,
     strategy_name: str,
     max_items: int,
     dry_run: bool,
@@ -175,8 +238,13 @@ async def _draft(
     click.echo("done")
 
     elapsed = time.monotonic() - start
+    # Override issue_date and re-render title to match the target date
+    title = f"Astral Index — {issue_date.strftime('%B %d, %Y')}"
     newsletter = newsletter.model_copy(
         update={
+            "issue_date": issue_date,
+            "title": title,
+            "markdown": newsletter.markdown.replace(newsletter.title, title, 1),
             "strategy_name": pipeline.name,
             "generation_seconds": round(elapsed, 2),
         }
@@ -186,8 +254,8 @@ async def _draft(
         md_path = Path(output_path)
     else:
         # Default: stage in git-tracked issues/ directory
-        issue_date = newsletter.issue_date.isoformat()
-        md_path = Path("issues") / issue_date / "draft.md"
+        issue_date_str = newsletter.issue_date.isoformat()
+        md_path = Path("issues") / issue_date_str / "draft.md"
 
     md_path.parent.mkdir(parents=True, exist_ok=True)
     md_path.write_text(newsletter.markdown)
