@@ -44,6 +44,11 @@ class ContentStore:
                 return True
         return False
 
+    @staticmethod
+    def _item_date(item: ContentItem) -> datetime:
+        """Editorial date: published_at if available, else scraped_at."""
+        return item.published_at or item.scraped_at
+
     def list_items(
         self,
         *,
@@ -55,18 +60,30 @@ class ContentStore:
         if not items_dir.exists():
             return []
 
+        # Use directory names (YYYY-MM-DD) to skip irrelevant date dirs early.
+        # Items are filed by published_at, so this is a safe pre-filter.
+        since_str = since.strftime("%Y-%m-%d") if since else None
+        before_str = before.strftime("%Y-%m-%d") if before else None
+
         results: list[ContentItem] = []
         for date_dir in sorted(items_dir.iterdir()):
             if not date_dir.is_dir():
                 continue
+            dir_name = date_dir.name
+            # Skip directories clearly outside the date window
+            if since_str and dir_name < since_str:
+                continue
+            if before_str and dir_name >= before_str:
+                continue
             for path in date_dir.glob("*.json"):
                 item = ContentItem.model_validate(json.loads(path.read_text()))
-                if since and item.scraped_at < since:
+                item_dt = self._item_date(item)
+                if since and item_dt < since:
                     continue
-                if before and item.scraped_at >= before:
+                if before and item_dt >= before:
                     continue
                 if source_name and item.source_name != source_name:
                     continue
                 results.append(item)
 
-        return sorted(results, key=lambda i: i.scraped_at, reverse=True)
+        return sorted(results, key=lambda i: self._item_date(i), reverse=True)
