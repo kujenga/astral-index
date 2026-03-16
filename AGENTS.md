@@ -269,11 +269,11 @@ Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.
 
 **Modes:** `--mode single` targets one scorer. `--mode sweep` (default) rotates through all scorers, weakest first, with stuck-detection after 3 consecutive failures.
 
-**Scope:** `--scope author` (default), `prompts`, `strategies`, `eval`, `sources`, or `full` (all of the above). In `full` scope the agent picks the highest-impact lever for each target.
+**Scope:** `--scope full` (default — lets the agent fix whatever's actually broken), `author`, `prompts`, `strategies`, `eval`, or `sources`. In `full` scope the agent picks the highest-impact lever for each target.
 
 **Finish conditions:** `--until "all scorers above 0.6"`, `--until "average score exceeds 0.75"`, `--until "no scorer below 0.4"`, etc. Evaluated mechanically after each iteration.
 
-**Parallel mode (agent teams):** See `.claude/skills/autoiterate/TEAM.md` for a ready-to-paste prompt that spawns 3 teammates in git worktrees, each trying a different approach. The lead merges the winner each generation. Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (set in `.claude/settings.json`).
+**Parallel mode:** `--parallel N` spawns N teammates per generation using the Agent tool (`isolation: "worktree"`, `model: "sonnet"`, `run_in_background: true`). The lead ideates N approaches, teammates implement and experiment concurrently in isolated worktrees, lead merges the winner. `--generations G` controls how many rounds (default 3). Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (set in `.claude/settings.json`). See `.claude/skills/autoiterate/TEAM.md` for design rationale and troubleshooting.
 
 ### Skill composition
 
@@ -283,10 +283,11 @@ Fully autonomous iteration inspired by [Karpathy's autoresearch](https://github.
                               |                            |
 /audit-eval ──(scorer fixes)──┘       (low scores) ───────┘
 
-/autoiterate ── autonomous loop (serial or parallel via agent teams)
+/autoiterate ── autonomous loop (serial or parallel)
      ├── --mode sweep: rotates through weakest scorers
      ├── --scope full: touches pipeline code, prompts, strategies, eval, sources
-     └── --until "condition": stops when quality target is met
+     ├── --until "condition": stops when quality target is met
+     └── --parallel 3: spawns 3 Sonnet teammates per generation in worktrees
 ```
 
 ## Keeping docs current

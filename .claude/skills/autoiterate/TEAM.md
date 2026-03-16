@@ -1,152 +1,68 @@
-# Autoiterate Agent Team — Parallel Mode
+# Autoiterate Parallel Mode — Reference
 
-This is a reference prompt for running autoiterate in parallel mode using Claude Code agent teams. Copy-paste or adapt the prompt below.
+Parallel mode is built into the `/autoiterate` skill via `--parallel N`. This document covers design rationale and troubleshooting — the actual protocol lives in `SKILL.md`.
 
-## Prerequisites
-
-1. Agent teams enabled: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` set in settings or env
-2. Golden dataset uploaded: `uv run --package astral-eval astral-eval upload-dataset --since {date} --name golden-standard`
-3. Familiarity with `/autoiterate` (serial mode) — the teammates follow the same protocol
-
-## Team Prompt
-
-Paste this into a Claude Code session to start a parallel autoiterate run:
-
----
+## Usage
 
 ```
-Create an agent team to optimize newsletter quality through parallel experimentation.
-
-## Context
-
-This is Astral Index, a space tech newsletter. The pipeline (rank → cluster → summarize → draft) lives in packages/author/src/astral_author/. Quality is measured by heuristic scorers via:
-
-  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
-
-Read .claude/skills/autoiterate/SKILL.md for the full iteration protocol.
-
-## Target
-
-Optimize: {TARGET_SCORER}  (e.g., source_diversity, category_coverage, section_balance)
-Dataset: golden-standard
-Strategy: baseline
-
-## Team structure
-
-**You (lead):** Coordinate experiments. Each generation:
-1. Read data/eval/autoiterate_log.md and git log for history
-2. Read the target scorer implementation in packages/core/src/astral_core/scoring.py
-3. Ideate 3 DIFFERENT approaches to improve the target scorer
-4. Assign one approach per teammate — be specific about what to change and in which file
-5. Require plan approval: review each teammate's plan before they implement
-6. Wait for all teammates to report scores
-7. Merge the winning branch: git merge autoiterate/{winner} --no-edit
-8. Clean up losing branches: git branch -D autoiterate/{loser}
-9. Update data/eval/autoiterate_log.md with the generation results
-10. Spawn fresh teammates for the next generation
-11. Repeat for {N_GENERATIONS} generations (default: 3)
-
-**Teammates (3):** Each receives an approach. Protocol:
-1. git worktree add /tmp/autoiterate-{your-name} -b autoiterate/{your-name}
-2. Work in the worktree directory
-3. Implement the assigned change (ONLY files in packages/author/src/astral_author/)
-4. Run: uv run pre-commit run --all-files
-5. Commit with message: "autoiterate(team): {description}"
-6. Run: uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline --no-llm
-7. Parse the target scorer value and overall average
-8. Message the lead: "Done. {target_scorer}={value}, avg={value}. Branch: autoiterate/{name}"
-9. git worktree remove /tmp/autoiterate-{your-name}
-10. Shut down
-
-## Rules
-- Teammates: only modify packages/author/src/astral_author/. Nothing else.
-- Lead: only merge branches that improved the target score without regressing others > 0.05.
-- If no teammate improved, log "generation {N}: no improvement" and try different approaches.
-- Lead does NOT implement changes — only coordinate and merge.
-- Use Sonnet for teammates to reduce cost.
-
-## Start
-
-First, establish baseline:
-  uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
-
-Read the scorer implementations, then begin generation 1.
+/autoiterate --parallel 3 source_diversity                  # 3 teammates, target one scorer
+/autoiterate --parallel 3 --generations 5 --mode sweep      # 5 generations, sweep mode
+/autoiterate --parallel 3 --scope full --until "avg > 0.7"  # full scope, finish condition
 ```
 
----
+## How It Works
+
+Each generation, the lead:
+1. Ideates N different approaches for the current target scorer
+2. Spawns N agents via the Agent tool (`isolation: "worktree"`, `model: "sonnet"`)
+3. All N run concurrently in isolated git worktrees
+4. Collects results, merges the winning branch, discards the rest
+5. Logs the generation and moves to the next
+
+### Agent Tool Features Used
+
+| Feature | Purpose |
+|---------|---------|
+| `isolation: "worktree"` | Each teammate gets an isolated repo copy — no manual worktree management |
+| `model: "sonnet"` | Cheaper teammates (Opus lead, Sonnet workers) |
+| `run_in_background: true` | All teammates spawn concurrently in one message |
+| `mode: "bypassPermissions"` | Teammates don't prompt for tool approvals |
+| Return value | Teammates return structured RESULT blocks; worktree branch info comes from Agent tool metadata |
+
+### Cost Model
+
+- **Lead (Opus):** ideation, coordination, merge decisions — relatively few tokens per generation
+- **Teammates (Sonnet):** read files, implement, run experiment — bulk of the tokens
+- 3 teammates × 3 generations = 9 experiments. At ~$0.30–0.50 per Sonnet experiment (heuristic-only), that's ~$3–5 per parallel run.
+- With LLM judges: ~$1–2 per experiment, so ~$9–18 per parallel run.
 
 ## Customization
 
-### Change the number of teammates
+### Number of teammates
 
-Replace "Teammates (3)" with however many parallel experiments you want. 3 is the sweet spot for token cost vs. search breadth.
+`--parallel N`. 3 is the sweet spot — enough diversity without excessive cost. Use 2 for cheap exploration, 4–5 for broad search.
 
-### Change the number of generations
+### Number of generations
 
-Set `N_GENERATIONS` in the prompt. Each generation = 1 round of parallel experiments. 3 generations × 3 teammates = 9 total experiments.
+`--generations G` (default 3). Each generation compounds on the previous winner. More generations = more improvement but higher cost.
 
-### Target multiple scorers
+### Combining with other flags
 
-Run separate team sessions for each scorer, or modify the prompt to rotate targets across generations:
-
-```
-Generation 1: optimize source_diversity
-Generation 2: optimize category_coverage
-Generation 3: optimize the scorer that's now lowest
-```
-
-### Use with /loop
-
-The team prompt is self-contained (it loops by spawning fresh teammates each generation). You don't need `/loop` for the team version — the lead handles the loop count via `N_GENERATIONS`.
-
-For serial mode, `/loop` works:
-```
-/loop 10 /autoiterate source_diversity
-```
-
-## Results Log Format
-
-The lead maintains `data/eval/autoiterate_log.md` in this format:
-
-```markdown
-# Autoiterate Results Log
-Target: source_diversity
-Dataset: golden-standard
-Strategy: baseline
-Started: 2026-03-14T10:00:00
-
-## Baseline
-| Scorer | Score |
-|--------|-------|
-| source_diversity | 0.42 |
-| category_coverage | 0.65 |
-| ... | ... |
-
-## Generation 1 (parallel, 3 teammates)
-| Teammate | Change | source_diversity | Avg | Delta | Result |
-|----------|--------|-----------------|-----|-------|--------|
-| alpha | Added source tier weighting in rank.py | 0.48 | 0.61 | +0.06 | WINNER |
-| beta | Per-source item cap of 3 in cluster.py | 0.44 | 0.59 | +0.02 | discard |
-| gamma | Geographic diversity bonus in rank.py | 0.41 | 0.58 | -0.01 | discard |
-
-## Generation 2 (parallel, 3 teammates)
-| Teammate | Change | source_diversity | Avg | Delta | Result |
-|----------|--------|-----------------|-----|-------|--------|
-| alpha | Reduced cap to 2 items from same source | 0.52 | 0.60 | +0.04 | WINNER |
-| beta | Source rotation across sections | 0.49 | 0.62 | +0.01 | discard |
-| gamma | Weighted sampling instead of top-N | 0.46 | 0.57 | -0.02 | discard |
-
-## Summary
-Baseline: 0.42 → Current best: 0.52 (+0.10)
-Generations: 2, Experiments: 6, Winners: 2
-```
+All serial-mode flags work in parallel mode:
+- `--scope` controls what teammates may modify
+- `--mode sweep` rotates targets across generations
+- `--until` checks the finish condition after each generation
+- `--no-llm` makes experiments faster and deterministic
+- `--dataset` / `--strategy` pass through to experiment commands
 
 ## Troubleshooting
 
-**Teammates can't find the dataset:** Make sure you've uploaded it first with `upload-dataset`.
+**Teammates can't find the dataset:** Make sure you've uploaded it first: `uv run --package astral-eval astral-eval setup-datasets`
 
-**Worktree conflicts:** Each teammate must use a unique branch name. The template uses `autoiterate/{teammate-name}`.
+**All teammates crash:** Usually a pre-commit or import error. The lead should read the error from the first teammate's result and fix the underlying issue before spawning the next generation.
 
-**Lead starts implementing:** Tell it: "Wait for your teammates to complete their tasks before proceeding. You are the coordinator, not an implementer."
+**Lead starts implementing instead of coordinating:** The lead should ONLY ideate and merge — never make code changes directly in parallel mode.
 
-**Teammate edits wrong files:** The scope constraint is in the prompt. If a teammate violates it, the lead should reject the plan at the approval step.
+**No winner for several generations:** The lead should try radically different approaches, widen the scope, or switch to a different target scorer.
+
+**Worktree cleanup:** The Agent tool auto-cleans worktrees when no changes are made. For worktrees with changes, branches persist until the lead deletes them after merging/discarding.

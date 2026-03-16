@@ -32,12 +32,12 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 - `--mode single` — target one scorer only (default if a scorer name is given)
 
 ### Scope (what files you may touch)
-- `--scope author` — only `packages/author/src/astral_author/` **(default, safest)**
+- `--scope full` — all scopes below **(default — lets you fix whatever's actually broken)**
+- `--scope author` — only `packages/author/src/astral_author/`
 - `--scope prompts` — only system prompt strings in summarize.py and draft.py
 - `--scope strategies` — only STRATEGIES dict and stage configs in pipeline.py
 - `--scope eval` — only `packages/core/src/astral_core/scoring.py` and `packages/eval/src/astral_eval/scorers/`
 - `--scope sources` — only `packages/ingest/src/astral_ingest/sources.yaml`
-- `--scope full` — all of the above
 
 ### Finish condition (when to stop)
 - `--until "CONDITION"` — a natural-language finish condition, evaluated after each iteration. Examples:
@@ -48,22 +48,32 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
   - `--until "no scorer below 0.4"`
 - If omitted, loops forever (or N times via `/loop N`)
 
+### Parallel mode (agent teams)
+- `--parallel N` — spawn N teammates per generation, each trying a different approach. Default: serial (no parallelism). Recommended: `--parallel 3`.
+- Teammates run in isolated git worktrees via the Agent tool's `isolation: "worktree"` feature
+- Teammates use Sonnet to reduce cost
+- The lead (you) coordinates: ideates N approaches, spawns teammates, merges the winner
+- See "Parallel Mode Loop" section below for the full protocol
+
 ### Other options
 - `--dataset NAME` — Braintrust dataset (default: `golden-standard`)
-- `--no-llm` — skip LLM judges (faster, cheaper, deterministic — heuristic scorers only)
+- `--llm` — enable LLM judges (off by default — heuristic-only is faster, cheaper, and deterministic, giving you more iterations per session; use `--llm` for final validation or when optimizing LLM-judge-only dimensions like editorial_quality)
 - `--strategy NAME` — strategy to optimize (default: `baseline`)
+- `--generations N` — number of generations in parallel mode (default: 3, ignored in serial mode)
 - Free-text improvement goal — interpreted as context for ideation
 
 ### Examples
 
 ```
-/autoiterate                                              # sweep all scorers, author scope, loop forever
+/autoiterate                                              # sweep all scorers, full scope, heuristic-only
 /autoiterate source_diversity                             # target one scorer
-/autoiterate --mode sweep --scope full --until "average score above 0.7"
-/autoiterate --mode sweep --until "all scorers above 0.5" # holistic improvement
-/autoiterate --scope prompts editorial_quality             # tune prompts for editorial quality
-/autoiterate --scope full --until "no scorer below 0.4"   # raise the floor
+/autoiterate --until "average score above 0.7"            # stop when target met
+/autoiterate --until "all scorers above 0.5"              # holistic improvement
+/autoiterate --scope prompts editorial_quality --llm       # tune prompts with LLM judges
+/autoiterate --scope author                                # restrict to pipeline code only
 /loop 10 /autoiterate --mode sweep                        # 10 iterations across all scorers
+/autoiterate --parallel 3 source_diversity                 # 3 teammates per generation
+/autoiterate --parallel 3 --generations 5 --mode sweep     # 5 generations, 3 teammates each
 ```
 
 ## Setup Phase (Do Once, First Iteration Only)
@@ -93,10 +103,10 @@ Also read the scorer implementations to understand what "good" means:
 
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY}
+  --dataset {DATASET} --strategy {STRATEGY} --no-llm
 ```
 
-If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to the command.
+If `--llm` was passed in `$ARGUMENTS`, remove `--no-llm` from the command to enable LLM judges.
 
 Parse ALL scores. Record as iteration #0. In sweep mode, rank scorers low-to-high — the lowest becomes the first target.
 
@@ -159,8 +169,9 @@ In sweep mode, pick the target for this iteration:
 - BUT if you've failed 3 consecutive times on the same scorer, mark it "stuck" and skip to the next lowest
 - After improving a scorer, re-rank all scorers from the latest experiment results — the new lowest becomes the next target
 - Stuck scorers reset when you cycle back to them after improving others
+- **Global stuck-detection:** if ALL scorers are marked stuck, stop the loop — you've exhausted your ideas across every dimension. Print `ALL SCORERS STUCK — stopping` and the final summary. This prevents burning tokens cycling through targets with no viable approaches left.
 
-In single mode, the target never changes.
+In single mode, the target never changes. In single mode, stop after 5 consecutive failures (the serial equivalent of global stuck-detection).
 
 ### 2. Review
 
@@ -253,10 +264,10 @@ Approach: {what you changed and why}"
 Run the experiment:
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY}
+  --dataset {DATASET} --strategy {STRATEGY} --no-llm
 ```
 
-If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to the command.
+If `--llm` was passed in `$ARGUMENTS`, remove `--no-llm` to enable LLM judges.
 
 Parse the output. Extract ALL scorer values and the average.
 
@@ -309,27 +320,152 @@ If not met, continue to next iteration.
 
 Go back to step 1. **NEVER ask "should I continue?"**
 
-## When Running as a Teammate (Agent Team Context)
+## Parallel Mode Loop
 
-If you are a teammate in an agent team (not the lead), your behavior changes:
+When `--parallel N` is specified, the loop changes from serial to generational. You (the lead) coordinate N teammates per generation. Each generation is one round of parallel experiments.
 
-1. You receive a **specific approach** from the lead (not free-form ideation)
-2. You work in a **git worktree** for isolation
-3. After verify, you **report your score to the lead** instead of deciding keep/revert
-4. The lead decides which teammate's change wins
-5. You shut down after reporting
+### Setup Phase
 
-Teammate protocol:
+Same as serial mode (parse args, read files, establish baseline, create log). Additionally:
+- Parse `--parallel N` and `--generations G` (default 3)
+- Log format changes to show generations instead of individual iterations
+
+### The Parallel Loop
+
 ```
-1. Receive approach description from lead
-2. Create worktree: git worktree add /tmp/autoiterate-{name} -b autoiterate/{name}
-3. cd into worktree
-4. Implement the change
-5. Run pre-commit
-6. Commit
-7. Run experiment, parse scores
-8. Message lead: "Score: {target}={value}, avg={value}. Change: {description}. Branch: autoiterate/{name}"
-9. Shut down
+GENERATION LOOP (repeat for G generations):
+  1. SELECT TARGET
+  2. REVIEW history
+  3. IDEATE N different approaches (one per teammate)
+  4. SPAWN N teammates (Agent tool, in parallel)
+  5. COLLECT results from all teammates
+  6. MERGE winner
+  7. LOG generation results
+  8. CHECK FINISH CONDITION
+  9. REPEAT
+```
+
+### 1–3. Select, Review, Ideate
+
+Same as serial mode, but ideate **N different approaches** instead of one. Each approach should explore a meaningfully different angle — not minor variations of the same idea.
+
+Good: "approach A changes the ranker weights, B adds a per-source cap, C adjusts cluster thresholds"
+Bad: "approach A sets weight to 0.3, B sets weight to 0.4, C sets weight to 0.5"
+
+### 4. Spawn Teammates
+
+For each approach, spawn a teammate using the Agent tool with these parameters:
+
+```
+Agent(
+  description: "autoiterate teammate {name}",
+  prompt: <the teammate prompt below, filled in>,
+  isolation: "worktree",
+  model: "sonnet",
+  mode: "bypassPermissions",
+  run_in_background: true
+)
+```
+
+**Spawn all N teammates in a single message** so they run concurrently.
+
+#### Teammate Prompt Template
+
+Fill in the `{placeholders}` and pass as the `prompt` parameter:
+
+```
+You are a teammate in an autoiterate agent team. Your job: implement ONE specific change,
+run the experiment, and report your scores. Do NOT ask questions or improvise — follow this
+protocol exactly.
+
+## Your Assignment
+Approach: {APPROACH_DESCRIPTION}
+Target scorer: {TARGET_SCORER}
+Scope: {SCOPE} (only modify files within this scope)
+
+## Scope → Allowed Files
+- author: packages/author/src/astral_author/
+- prompts: packages/author/src/astral_author/summarize.py, draft.py (prompt strings only)
+- strategies: packages/author/src/astral_author/pipeline.py
+- eval: packages/core/src/astral_core/scoring.py, packages/eval/src/astral_eval/scorers/
+- sources: packages/ingest/src/astral_ingest/sources.yaml
+- full: all of the above
+
+## Protocol
+1. Read the files you need to understand the change
+2. Implement the assigned change — ONE atomic modification
+3. Validate: uv run pre-commit run --all-files (fix any failures)
+4. Commit: git add {files} && git commit -m "autoiterate(team): {brief description}"
+5. Run experiment:
+   uv run --package astral-eval astral-eval experiment --dataset {DATASET} --strategy {STRATEGY} {LLM_FLAG}
+   (default: --no-llm. If the lead specified --llm, omit --no-llm)
+6. Parse ALL scorer values from the output
+7. Return a structured report as your final message:
+
+RESULT:
+target_scorer: {TARGET_SCORER}
+target_value: <value>
+average: <value>
+all_scores:
+  <scorer1>: <value>
+  <scorer2>: <value>
+  ...
+change_description: <one-line summary of what you changed>
+
+## Rules
+- Only modify files allowed by the scope
+- If pre-commit fails, fix it. If you can't fix it in 2 tries, report RESULT with target_value: CRASH
+- Do not ask questions. Do not deviate from the assignment.
+- Do not revert your changes — the lead handles that via branch management.
+```
+
+### 5. Collect Results
+
+You will be notified as each background agent completes. Wait for all N to finish. Parse each teammate's RESULT block to extract:
+- `target_value` (the target scorer's score)
+- `average` (overall average)
+- `change_description`
+- Whether the agent made changes (the Agent tool result indicates if a worktree branch was created)
+
+### 6. Merge Winner
+
+Compare all teammates' results against the current baseline:
+
+1. **Find the best result:** highest `target_value` among teammates that also don't regress any other scorer > 0.05
+2. **If a winner exists** (target improved beyond noise floor):
+   - Merge the winner's worktree branch: `git merge <branch> --no-edit`
+   - Print: `WINNER: {name} — {target_scorer} {baseline} → {new} (+{delta})`
+   - Delete all teammate branches: `git branch -D <branch>` for each
+3. **If no winner** (all crashed, regressed, or within noise):
+   - Delete all teammate branches
+   - Print: `NO WINNER this generation — all approaches failed or within noise`
+
+**Noise floor rules** are the same as serial mode: heuristic deltas are real, LLM judge deltas < 0.15 are noise.
+
+### 7. Log Generation Results
+
+Append to `data/eval/autoiterate_log.md`:
+
+```markdown
+## Generation {G} — Target: {target_scorer}
+| Teammate | Approach | {target_scorer} | Avg | Delta | Result |
+|----------|----------|-----------------|-----|-------|--------|
+| alpha | {description} | {score} | {avg} | {delta} | WINNER |
+| beta | {description} | {score} | {avg} | {delta} | discard |
+| gamma | {description} | {score} | {avg} | {delta} | discard |
+```
+
+### 8–9. Check Finish Condition + Repeat
+
+Same as serial mode. If the condition is met or generation count is reached, print the final summary and stop. Otherwise, start the next generation.
+
+### Parallel Mode Ending
+
+Same summary format as serial mode, but also include:
+```
+Generations: {G_completed}
+Total experiments: {G_completed × N}
+Winners: {winner_count}
 ```
 
 ## Critical Rules
