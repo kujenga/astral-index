@@ -488,11 +488,14 @@ def summary_quality(
             total += 1
             summary = item.get("summary", "")
             title = item.get("title", "")
+            # Title-echo is only bad for short titles — a 50-char
+            # title used as a summary is acceptable when no body exists
+            is_short_echo = summary.strip() == title.strip() and len(summary) < 40
             if (
                 not summary
                 or len(summary) < 20
                 or _REFUSAL_PATTERNS.search(summary)
-                or summary.strip() == title.strip()
+                or is_short_echo
             ):
                 bad_count += 1
                 reason = (
