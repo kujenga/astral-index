@@ -117,36 +117,63 @@ class PhoenixTracing:
 # ---------------------------------------------------------------------------
 
 
+class _PendingDataset:
+    """Buffer for rows before flushing to Phoenix.
+
+    Phoenix doesn't support empty datasets, so we accumulate rows
+    in memory and create/update the dataset on flush.
+    """
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.rows: list[dict[str, Any]] = []
+        self.id: str | None = None
+
+
 class PhoenixDatasets:
     def init_dataset(self, *, project: str, name: str) -> Any:
-        client = _get_client()
-        # Try to fetch existing dataset first
-        try:
-            return client.datasets.get_dataset(name=name)
-        except Exception:
-            pass
-        # Create new
-        return client.datasets.create_dataset(name=name, examples=[])
+        return _PendingDataset(name)
 
     def insert_row(self, dataset: Any, *, input: Any, metadata: dict[str, Any]) -> None:
-        # Phoenix datasets use examples with input/output/metadata dicts
-        client = _get_client()
-        client.datasets.add_examples_to_dataset(
-            dataset_id=dataset.id,
-            examples=[
-                {"input": input, "metadata": metadata},
-            ],
-        )
+        # Phoenix requires input to be a dict. Our callers pass a list
+        # of ContentItem dicts as input (one row = one week of items).
+        # Wrap in {"items": ...} so Phoenix accepts it.
+        if isinstance(input, list):
+            input = {"items": input}
+        dataset.rows.append({"input": input, "output": {}, "metadata": metadata})
 
     def flush_dataset(self, dataset: Any) -> None:
-        # Phoenix REST API commits immediately — no flush needed
-        pass
+        if not dataset.rows:
+            return
+        client = _get_client()
+        # Try to add to existing dataset
+        try:
+            existing = client.datasets.get_dataset(dataset=dataset.name)
+            result = client.datasets.add_examples_to_dataset(
+                dataset=existing, examples=dataset.rows
+            )
+            dataset.id = result.id
+        except Exception:
+            # Dataset doesn't exist yet — create with all rows
+            result = client.datasets.create_dataset(
+                name=dataset.name, examples=dataset.rows
+            )
+            dataset.id = result.id
+        dataset.rows.clear()
 
     def fetch_rows(self, dataset: Any) -> list[dict[str, Any]]:
         client = _get_client()
-        ds = client.datasets.get_dataset(dataset_id=dataset.id)
-        examples = client.datasets.get_examples(dataset_id=ds.id)
-        return [{"input": ex.input, "metadata": ex.metadata} for ex in examples]
+        # dataset can be a _PendingDataset (by name) or a Phoenix Dataset
+        name = dataset.name if hasattr(dataset, "name") else str(dataset)
+        ds = client.datasets.get_dataset(dataset=name)
+        rows = []
+        for ex in ds.examples:
+            input_data = ex["input"]
+            # Unwrap the {"items": [...]} wrapper we added on insert
+            if isinstance(input_data, dict) and "items" in input_data:
+                input_data = input_data["items"]
+            rows.append({"input": input_data, "metadata": ex.get("metadata", {})})
+        return rows
 
 
 class PhoenixExperiments:
@@ -161,13 +188,41 @@ class PhoenixExperiments:
     ) -> dict[str, Any]:
         from phoenix.client.experiments import run_experiment
 
-        # Phoenix run_experiment expects a dataset object and evaluator fns
-        # with signature (output, expected) -> float
+        client = _get_client()
+
+        # Resolve _PendingDataset to a real Phoenix Dataset object
+        if isinstance(data, _PendingDataset):
+            data = client.datasets.get_dataset(dataset=data.name)
+
+        # Phoenix passes a DatasetExample (dict-like with input/output/metadata)
+        # to the task. Our task expects (input_list, hooks=None).
+        # Also, Phoenix sync runner can't call async tasks, so we run
+        # them in a thread with a new event loop.
+        original_task = task
+        is_async_task = inspect.iscoroutinefunction(task)
+
+        def actual_task(example: Any) -> Any:
+            # Extract input items from the example — unwrap our
+            # {"items": [...]} wrapper if present
+            input_data = example.get("input", example)
+            if isinstance(input_data, dict) and "items" in input_data:
+                input_data = input_data["items"]
+
+            if is_async_task:
+                import asyncio
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(1) as pool:
+                    future = pool.submit(asyncio.run, original_task(input_data))
+                    return future.result()
+            return original_task(input_data)
+
         result = run_experiment(
             dataset=data,
-            task=task,
+            task=actual_task,
             evaluators=scorers,
             experiment_name=experiment_name,
+            client=client,
         )
         return {
             "experiment_name": experiment_name,
@@ -185,8 +240,8 @@ class PhoenixExperiments:
         is_async = inspect.iscoroutinefunction(scorer)
 
         def _phoenix_evaluator(output: Any, expected: Any = None) -> float:
-            # output is the task return value (dict)
-            # For sync scorers
+            if output is None:
+                return 0.0
             if is_async:
                 import asyncio
 
