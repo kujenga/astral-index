@@ -34,7 +34,7 @@ class DraftPipeline:
         self,
         items: list[ContentItem],
         *,
-        max_items: int = 30,
+        max_items: int = 50,
     ) -> NewsletterDraft:
         """Execute rank -> cluster -> summarize -> draft, with timing."""
         start = time.monotonic()
