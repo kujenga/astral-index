@@ -78,6 +78,7 @@ This repo is public. Keep this in mind:
 
 ## Development
 
+- **`gh` CLI commands require sandbox bypass** — GitHub CLI calls (e.g., `gh pr create`, `gh api`) fail inside the Claude Code sandbox due to TLS certificate verification. Run these with `dangerouslyDisableSandbox: true`.
 - Keep implementations simple — avoid premature abstraction
 - Always use `uv run` to execute Python commands — never call `python` or `python3` directly
 - Workspace packages depend on each other via `tool.uv.sources` (e.g., `astral-core = { workspace = true }` in astral-ingest's pyproject.toml)
