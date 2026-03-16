@@ -114,6 +114,9 @@ class TestPromptTemplates:
     def test_introduction_quality_prompt(self):
         assert len(_INTRODUCTION_QUALITY_SYSTEM) > 50
         assert "introduction" in _INTRODUCTION_QUALITY_SYSTEM.lower()
+        # Verify updated rubric evaluates substance / tl;dr value
+        assert "substance" in _INTRODUCTION_QUALITY_SYSTEM.lower()
+        assert "tl;dr" in _INTRODUCTION_QUALITY_SYSTEM.lower()
 
     def test_tone_consistency_prompt(self):
         assert len(_TONE_CONSISTENCY_SYSTEM) > 50

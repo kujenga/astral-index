@@ -17,8 +17,12 @@ logger = logging.getLogger(__name__)
 
 _INTRO_SYSTEM = """\
 You are the editor of a space technology newsletter called "Astral Index". \
-Given the top 2-3 story headlines from this issue, write a brief 2-3 sentence \
-introduction that hooks the reader. Be conversational but informative. \
+Write a compelling introduction (3-5 sentences) that:
+- Leads with the week's most significant development and why it matters
+- Adds context, specific details, or implications beyond the headline
+- Briefly previews the other major themes covered in this issue
+- Uses a conversational but informed editorial voice
+
 Return ONLY the introduction text, no greetings or sign-offs."""
 
 
@@ -38,20 +42,51 @@ def _render_section(section: NewsletterSection) -> str:
     return "\n".join(lines)
 
 
-async def _generate_intro(top_titles: list[str]) -> str | None:
-    """Generate an LLM introduction mentioning top stories. Returns None on failure."""
+async def _generate_intro(sections: list[NewsletterSection]) -> str | None:
+    """Generate an LLM introduction from section context. Returns None on failure."""
     client = get_llm_client()
     if client is None:
         return None
 
-    bullets = "\n".join(f"- {t}" for t in top_titles[:3])
+    # Build rich context: top stories with summaries
+    top_stories: list[str] = []
+    for section in sections:
+        for item in section.items[:2]:
+            summary_snippet = item.summary[:150] if item.summary else ""
+            top_stories.append(f"- {item.title}: {summary_snippet}")
+            if len(top_stories) >= 5:
+                break
+        if len(top_stories) >= 5:
+            break
+
+    # Section headings
+    headings = [s.heading for s in sections]
+
+    # Category breakdown
+    from collections import Counter
+
+    cat_counts: Counter[str] = Counter()
+    for section in sections:
+        if section.category:
+            cat_counts[section.category] += len(section.items)
+
+    parts = ["Top stories:"]
+    parts.extend(top_stories[:5])
+    if headings:
+        parts.append(f"\nSection headings: {', '.join(headings)}")
+    if cat_counts:
+        cat_str = ", ".join(f"{k} ({v})" for k, v in cat_counts.most_common())
+        parts.append(f"Categories covered: {cat_str}")
+
+    user_message = "\n".join(parts)
+
     try:
         system = load_prompt("newsletter-intro", _INTRO_SYSTEM)
         resp = await client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=300,
+            max_tokens=600,
             system=system,
-            messages=[{"role": "user", "content": f"Top stories:\n{bullets}"}],
+            messages=[{"role": "user", "content": user_message}],
         )
         return resp.content[0].text.strip()
     except Exception:
@@ -70,21 +105,25 @@ class MarkdownDrafter:
         today = date.today()
         title = f"Astral Index — {today.strftime('%B %d, %Y')}"
 
-        # Collect top story titles for the introduction
-        top_titles: list[str] = []
-        for section in sections:
-            for item in section.items[:2]:
-                top_titles.append(item.title)
-                if len(top_titles) >= 3:
-                    break
-            if len(top_titles) >= 3:
-                break
-
         # Try LLM introduction, fall back to a simple header
-        intro = await _generate_intro(top_titles)
+        intro = await _generate_intro(sections)
         if not intro:
-            if top_titles:
-                highlights = ", ".join(top_titles[:3])
+            # Fallback: use top story summary if available for a richer template
+            top_item = None
+            for section in sections:
+                if section.items:
+                    top_item = section.items[0]
+                    break
+            if top_item and top_item.summary:
+                intro = (
+                    f"This week in space: {top_item.title}. "
+                    f"{top_item.summary.split('.')[0]}. "
+                    f"Plus {sum(len(s.items) for s in sections) - 1} more stories."
+                )
+            elif top_item:
+                highlights = ", ".join(
+                    item.title for s in sections for item in s.items[:2]
+                )[:200]
                 intro = f"This week in space: {highlights}, and more."
             else:
                 intro = "Here's your roundup of the latest in space technology."
