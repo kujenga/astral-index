@@ -382,3 +382,40 @@ class TestOffTopicLeakage:
         output = {"sections": [_items_section(items)]}
         result = off_topic_leakage(output=output, input=input_items)
         assert result.score == 1.0
+
+    def test_buying_guide_flagged(self):
+        """Buying guide title -> flagged as off-topic."""
+        input_items = [
+            {"id": "a1", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="Best telescopes to buy in 2026"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.0
+        assert result.metadata["off_topic"] == 1
+
+    def test_horoscope_flagged(self):
+        """Horoscope title -> flagged as off-topic."""
+        input_items = [
+            {"id": "a1", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="Your Zodiac horoscope for March"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.0
+
+    def test_space_review_not_flagged(self):
+        """Space program review -> NOT flagged (no gaming prefix)."""
+        input_items = [
+            {"id": "a1", "categories": ["space_policy"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="NASA Artemis program review"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 1.0
