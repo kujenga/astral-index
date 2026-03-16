@@ -39,6 +39,7 @@ async def test_heuristic_score_names_match(
         "section_balance",
         "semantic_dedup",
         "off_topic_leakage",
+        "intro_quality",
     }
     assert set(scores.keys()) == expected
 

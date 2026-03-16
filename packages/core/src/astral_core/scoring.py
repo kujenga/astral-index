@@ -315,6 +315,130 @@ def off_topic_leakage(
     )
 
 
+def intro_quality(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score:
+    """Heuristic intro quality scorer.
+
+    Five weighted sub-scores: presence, template detection, specificity,
+    substance, and engagement. Measures structural properties correlating
+    with substantive introductions that provide tl;dr value.
+    """
+    introduction = output.get("introduction", "")
+    if not introduction or not introduction.strip():
+        return Score(name="intro_quality", score=0.0, metadata={"reason": "missing"})
+
+    words = introduction.split()
+    word_count = len(words)
+
+    # --- Sub-scores ---
+
+    # 1. Presence: exists and 30-120 words (targeting substantive intros)
+    if 30 <= word_count <= 120:
+        presence = 1.0
+    elif word_count < 30:
+        presence = word_count / 30.0
+    else:
+        # Over 120 words: gentle penalty
+        presence = max(0.5, 1.0 - (word_count - 120) / 200.0)
+
+    # 2. Not a known fallback template
+    _TEMPLATES = [
+        "here's your roundup",
+        "this week in space:",
+        "here is your roundup",
+        "welcome to this week",
+    ]
+    intro_lower = introduction.lower()
+    not_template = 0.0 if any(t in intro_lower for t in _TEMPLATES) else 1.0
+
+    # 3. Specificity: named entities / content-specific terms appear in intro
+    content_words: set[str] = set()
+    for section in output.get("sections", []):
+        for item in section.get("items", []):
+            title = item.get("title", "")
+            summary = item.get("summary", "")
+            for w in (title + " " + summary).split():
+                cleaned = re.sub(r"[^a-zA-Z0-9]", "", w)
+                if len(cleaned) > 4:
+                    content_words.add(cleaned.lower())
+
+    intro_words_set = {
+        re.sub(r"[^a-zA-Z0-9]", "", w).lower() for w in words if len(w) > 4
+    }
+    overlap_count = len(intro_words_set & content_words)
+    specificity = min(1.0, overlap_count / 4.0) if content_words else 0.5
+
+    # 4. Substance: intro references details from summaries NOT in titles
+    title_words: set[str] = set()
+    summary_words: set[str] = set()
+    for section in output.get("sections", []):
+        for item in section.get("items", []):
+            for w in item.get("title", "").split():
+                cleaned = re.sub(r"[^a-zA-Z0-9]", "", w)
+                if len(cleaned) > 4:
+                    title_words.add(cleaned.lower())
+            for w in item.get("summary", "").split():
+                cleaned = re.sub(r"[^a-zA-Z0-9]", "", w)
+                if len(cleaned) > 4:
+                    summary_words.add(cleaned.lower())
+
+    # Words that are in summaries but NOT in titles = "added color"
+    summary_only = summary_words - title_words
+    summary_only_overlap = len(intro_words_set & summary_only)
+    substance = min(1.0, summary_only_overlap / 3.0) if summary_only else 0.5
+
+    # 5. Engagement: questions, numbers/data, contrast/significance words
+    signals = 0
+    if "?" in introduction:
+        signals += 1
+    if re.search(r"\d+", introduction):
+        signals += 1
+    _ENGAGEMENT_WORDS = {
+        "first",
+        "despite",
+        "while",
+        "breakthrough",
+        "however",
+        "unprecedented",
+        "critical",
+        "significant",
+        "milestone",
+        "historic",
+    }
+    if any(w in intro_lower for w in _ENGAGEMENT_WORDS):
+        signals += 1
+    engagement = min(1.0, signals / 2.0)
+
+    # Weighted combination
+    score = (
+        0.20 * presence
+        + 0.20 * not_template
+        + 0.25 * specificity
+        + 0.20 * substance
+        + 0.15 * engagement
+    )
+
+    return Score(
+        name="intro_quality",
+        score=round(score, 3),
+        metadata={
+            "word_count": word_count,
+            "presence": round(presence, 3),
+            "not_template": round(not_template, 3),
+            "specificity": round(specificity, 3),
+            "substance": round(substance, 3),
+            "engagement": round(engagement, 3),
+            "specificity_overlap": overlap_count,
+            "substance_overlap": summary_only_overlap,
+            "engagement_signals": signals,
+        },
+    )
+
+
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
@@ -322,4 +446,5 @@ HEURISTIC_SCORERS = [
     section_balance,
     semantic_dedup,
     off_topic_leakage,
+    intro_quality,
 ]

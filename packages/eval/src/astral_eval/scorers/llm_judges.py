@@ -395,15 +395,18 @@ followed by a one-sentence justification."""
 
 _INTRODUCTION_QUALITY_SYSTEM = """\
 You are evaluating the introduction of a space technology newsletter.
-Assess whether the opening is compelling, frames the issue's themes, and \
-motivates the reader to continue.
+Assess whether the opening provides substantive value as a tl;dr of the \
+issue's most important content, with specific details and editorial color.
 
 Rate on this rubric:
-A - Opening is engaging, frames the week's themes, and motivates reading \
-further.
-B - Competent intro that summarizes the issue but lacks a compelling hook.
-C - Generic or templated intro; could apply to any week.
-D - Missing, empty, or confusing introduction.
+A - Leads with the week's most significant story with specific details \
+(names, numbers, implications). Frames the issue's themes. A reader \
+who only reads the intro gets real value.
+B - References specific stories and adds some context, but lacks depth \
+or doesn't clearly convey why these developments matter.
+C - Generic summary or hook that could apply to many weeks. Lists topics \
+without adding substance or color.
+D - Missing, empty, templated, or disconnected from the issue's content.
 
 Respond with exactly one letter (A, B, C, or D) \
 followed by a one-sentence justification."""
@@ -482,7 +485,7 @@ async def introduction_quality(
     input: list[dict[str, Any]] | None = None,
     **kwargs: Any,
 ) -> Score | None:
-    """Judge whether the introduction is compelling and frames the issue."""
+    """Judge whether the introduction provides substantive tl;dr value."""
     markdown = output.get("markdown", "")
 
     # Extract intro and section headings for context
@@ -490,10 +493,25 @@ async def introduction_quality(
     headings = [line for line in lines if line.startswith("## ")]
     heading_context = "\n".join(headings) if headings else ""
 
+    # Top story summaries so the judge can evaluate substance
+    top_summaries: list[str] = []
+    for section in output.get("sections", [])[:3]:
+        for item in section.get("items", [])[:2]:
+            title = item.get("title", "")
+            summary = item.get("summary", "")
+            if title:
+                top_summaries.append(f"- {title}: {summary[:150]}")
+            if len(top_summaries) >= 5:
+                break
+        if len(top_summaries) >= 5:
+            break
+
     introduction = output.get("introduction", "")
     user = f"Introduction:\n\n{introduction}"
     if heading_context:
         user += f"\n\n---\nSection headings:\n{heading_context}"
+    if top_summaries:
+        user += "\n\n---\nTop stories for reference:\n" + "\n".join(top_summaries)
 
     return await _ensemble_judge(
         "introduction_quality",
