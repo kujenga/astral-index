@@ -162,12 +162,6 @@ rss_sources:
 
   # --- Tier 5: Category-specific feeds ---
 
-  # Earth Observation
-  - name: "NASA Earth Observatory"
-    url: "https://earthobservatory.nasa.gov/feeds/earth-observatory.rss"
-    content_type: excerpt
-    category_hints: [earth_observation]
-    poll_interval_hours: 4
 
   # Mars & Planetary Science
   - name: "NASA JPL News"
