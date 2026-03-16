@@ -201,10 +201,14 @@ async def coverage_adequacy(
     """Judge whether the week's important stories are covered."""
     markdown = output.get("markdown", "")
 
-    # Build context from top input items
+    # Build context from top input items, sorted by word count so substantive
+    # articles come first (not arbitrary scrape order)
     input_summary = ""
     if input:
-        top = input[:20]
+        sorted_input = sorted(
+            input, key=lambda item: item.get("word_count") or 0, reverse=True
+        )
+        top = sorted_input[:20]
         lines = [
             f"- {item.get('title', '?')} ({item.get('source_name', '?')})"
             for item in top
