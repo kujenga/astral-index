@@ -154,10 +154,10 @@ uv run --package astral-serve astral-serve status
 uv run --package astral-serve astral-serve status 2026-03-01
 
 # Evaluate newsletter quality (heuristic only, no LLM needed)
-uv run --package astral-eval astral-eval quality --since 30 --no-llm --strategy headlines-only
+uv run --package astral-eval astral-eval quality --since 30 --no-llm
 
 # Full quality eval with LLM judges (needs ANTHROPIC_API_KEY)
-uv run --package astral-eval astral-eval quality --since 30 --strategy headlines-only
+uv run --package astral-eval astral-eval quality --since 30
 
 # Evaluate from an existing draft JSON file
 uv run --package astral-eval astral-eval quality --since 30 --draft-file data/drafts/draft.json
@@ -166,8 +166,8 @@ uv run --package astral-eval astral-eval quality --since 30 --draft-file data/dr
 uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
 
 # Run a Braintrust-tracked experiment (needs BRAINTRUST_API_KEY)
-uv run --package astral-eval astral-eval experiment --since 7 --strategy headlines-only --no-llm
-uv run --package astral-eval astral-eval experiment --dataset golden-standard --strategy baseline
+uv run --package astral-eval astral-eval experiment --since 7 --no-llm
+uv run --package astral-eval astral-eval experiment --dataset golden-standard
 
 # Compare strategies in parallel (separate experiments per strategy)
 uv run --package astral-eval astral-eval compare baseline headlines-only --since 7

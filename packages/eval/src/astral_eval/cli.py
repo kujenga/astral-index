@@ -57,7 +57,7 @@ def cli() -> None:
 @click.option(
     "--strategy",
     "strategy_name",
-    default="headlines-only",
+    default="baseline",
     type=click.Choice(list(STRATEGIES.keys())),
     help="Pipeline strategy for draft generation.",
 )
@@ -191,7 +191,7 @@ def _format_metadata(meta: dict) -> str:
 @click.option(
     "--strategy",
     "strategy_name",
-    default="headlines-only",
+    default="baseline",
     type=click.Choice(list(STRATEGIES.keys())),
     help="Pipeline strategy for draft generation.",
 )
