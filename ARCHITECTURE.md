@@ -131,7 +131,7 @@ Provides measurable feedback for iterating on ranker weights, summarizer prompts
 
 Reference judges receive OI issue text as `expected` via kwargs. They return `None` when no reference is available (2026 windows), so existing eval flows are unaffected. The `golden-oi` dataset tier contains only 2025 windows with matching OI issues. OI text is fetched and cached locally in `data/oi_reference/`.
 
-Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). All LLM callsites (classifier, summarizer, drafter, eval judges) use the shared `get_llm_client()` factory from `astral_core`, which automatically wraps with Braintrust tracing when `BRAINTRUST_API_KEY` is set.
+Uses Haiku rather than Sonnet for judging to avoid self-preference bias (Sonnet generates the drafts). All LLM callsites (classifier, summarizer, drafter, eval judges) use the shared `get_llm_client()` factory from `astral_core`, which instruments the client via the active observability backend (Braintrust, Phoenix, or noop).
 
 **Architecture** — scorers are standalone functions returning a `Score(name, score, metadata)` dataclass. The runner orchestrates sync heuristic + async concurrent LLM execution. All judges degrade gracefully (return `None`) without API keys.
 
