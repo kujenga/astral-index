@@ -20,6 +20,9 @@ jobs:
         with:
           enable-cache: true
 
+      # lxml (via trafilatura) requires native libs to build from source
+      - run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxslt-dev
+
       - run: uv sync --package astral-eval --extra braintrust --frozen
 
       - name: Run heuristic eval
@@ -41,6 +44,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+
+      # lxml (via trafilatura) requires native libs to build from source
+      - run: sudo apt-get update && sudo apt-get install -y libxml2-dev libxslt-dev
 
       - run: uv sync --package astral-eval --extra braintrust --frozen
 

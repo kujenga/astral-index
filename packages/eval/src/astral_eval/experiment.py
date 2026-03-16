@@ -90,6 +90,7 @@ def _resolve_local_dataset(
     items: list[ContentItem],
     *,
     dataset_name: str | None,
+    base_dir: str = "data",
 ) -> tuple[list[ContentItem], str | None]:
     """Resolve items and OI reference for a named dataset in local mode.
 
@@ -124,7 +125,7 @@ def _resolve_local_dataset(
     all_items: list[ContentItem] = []
     for key in window_keys:
         since, until = _window_to_datetimes(key)
-        window_items = _list_items_by_date_dir("data", since, until)
+        window_items = _list_items_by_date_dir(base_dir, since, until)
         all_items.extend(window_items)
 
     if not all_items:
