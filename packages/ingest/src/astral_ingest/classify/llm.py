@@ -29,16 +29,24 @@ _CATEGORY_DESCRIPTIONS = {
     SpaceCategory.SATELLITE_COMMS: ("Satellite internet, Starlink, constellations"),
     SpaceCategory.DEEP_SPACE: ("Outer planets, interstellar, asteroids, comets"),
     SpaceCategory.OFF_TOPIC: (
-        "Not about space — unrelated content, broken/empty text, social chatter"
+        "Not technical space content — entertainment, astrophotography, "
+        "observing guides, stargazing tips, sci-fi reviews, photo galleries, "
+        "podcast episodes, unrelated content, broken/empty text, social chatter"
     ),
 }
 
-_SYSTEM_PROMPT = """You are a space news classifier. Given a title and excerpt, \
+_SYSTEM_PROMPT = """\
+You are a space technology news classifier. Given a title \
+and excerpt, \
 return exactly ONE category from the list below. Return ONLY the category value \
 (e.g. "launch_vehicles"), nothing else.
 
+Classify content as "off_topic" if it is entertainment rather than technical \
+reporting — this includes astrophotography, observing guides, stargazing calendars, \
+sci-fi reviews, and photo galleries, even if they mention space topics.
+
 If the content is not about space, or the text is too broken/empty to classify, \
-return "off_topic".
+also return "off_topic".
 
 Categories:
 """
@@ -76,6 +84,35 @@ _FEW_SHOT = [
         ),
     },
     {"role": "assistant", "content": "lunar"},
+    {
+        "role": "user",
+        "content": (
+            "Title: Astrophotographer spends nearly 70 hours "
+            "capturing a delicate blue nebula in Orion (photo)\n"
+            "Excerpt: This stunning deep-sky image required 70 hours of exposure time "
+            "across multiple nights using a modified telescope setup."
+        ),
+    },
+    {"role": "assistant", "content": "off_topic"},
+    {
+        "role": "user",
+        "content": (
+            "Title: Best time to see Mars in the night sky this March\n"
+            "Excerpt: Mars reaches peak visibility this month. Here's when and where "
+            "to look for the Red Planet in your evening sky."
+        ),
+    },
+    {"role": "assistant", "content": "off_topic"},
+    {
+        "role": "user",
+        "content": (
+            "Title: Looking back at 'Red Dwarf', the sci-fi "
+            "show that had a huge impact on my childhood\n"
+            "Excerpt: The classic British sci-fi comedy remains one of the most "
+            "beloved space shows ever made."
+        ),
+    },
+    {"role": "assistant", "content": "off_topic"},
     {
         "role": "user",
         "content": (
