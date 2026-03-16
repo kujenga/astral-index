@@ -76,6 +76,71 @@ async def test_keyword_body_prefix_limit():
 
 
 # ---------------------------------------------------------------------------
+# Keyword classifier — entertainment / OFF_TOPIC negative signal
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "body"),
+    [
+        ("Photo of the day: aurora over Alaska", None),
+        ("Photo of the week: Milky Way over the desert", None),
+        ("Stargazing guide for March 2026", None),
+        ("Best sci-fi movies about space", None),
+        ("Stunning image of the night sky", None),
+        ("When to see the Perseid meteor shower", None),
+        ("Podcast episode 42: talking about space", None),
+        ("How to photograph the aurora borealis", None),
+    ],
+    ids=[
+        "photo_of_the_day",
+        "photo_of_the_week",
+        "stargazing_guide",
+        "scifi_movies",
+        "stunning_image",
+        "when_to_see",
+        "podcast_episode",
+        "how_to_photograph",
+    ],
+)
+async def test_entertainment_titles_off_topic(title: str, body: str | None):
+    """Entertainment titles with no technical content -> OFF_TOPIC."""
+    result = classify_by_keywords(title, body)
+    assert result == [SpaceCategory.OFF_TOPIC]
+
+
+async def test_entertainment_title_with_positive_category_match():
+    """Entertainment title that also matches a real category gets the real category."""
+    # "JWST" triggers SPACE_SCIENCE, so OFF_TOPIC should NOT appear
+    result = classify_by_keywords("Stunning JWST image of distant galaxy")
+    assert SpaceCategory.SPACE_SCIENCE in result
+    assert SpaceCategory.OFF_TOPIC not in result
+
+
+async def test_stunning_with_technical_category_not_off_topic():
+    """'Stunning' in a title with a real category match -> real category wins."""
+    result = classify_by_keywords("Stunning Hubble image of supernova remnant")
+    assert SpaceCategory.SPACE_SCIENCE in result
+    assert SpaceCategory.OFF_TOPIC not in result
+
+
+async def test_entertainment_title_with_technical_body_override():
+    """Entertainment title + technical body -> no OFF_TOPIC (defer to LLM)."""
+    result = classify_by_keywords(
+        "Stunning image of the week",
+        body="The mission team revealed new data from the experiment.",
+    )
+    assert result == []
+
+
+async def test_stunning_jwst_reveals_gets_space_science():
+    """'Stunning JWST image reveals...' -> space_science (positive match priority)."""
+    result = classify_by_keywords("Stunning JWST image reveals new galaxy formation")
+    assert SpaceCategory.SPACE_SCIENCE in result
+    assert SpaceCategory.OFF_TOPIC not in result
+
+
+# ---------------------------------------------------------------------------
 # LLM classifier
 # ---------------------------------------------------------------------------
 
