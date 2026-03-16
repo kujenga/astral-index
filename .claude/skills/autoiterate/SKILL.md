@@ -65,7 +65,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 ### Examples
 
 ```
-/autoiterate                                              # sweep all scorers, full scope, heuristic-only
+/autoiterate                                              # sweep all scorers, full scope, LLM judges enabled
 /autoiterate source_diversity                             # target one scorer
 /autoiterate --until "average score above 0.7"            # stop when target met
 /autoiterate --until "all scorers above 0.5"              # holistic improvement
@@ -481,6 +481,11 @@ Winners: {winner_count}
 8. **When stuck, think harder** — re-read the scorer, re-read past results, try the opposite of what failed. Combine near-misses. Try radical changes.
 9. **Respect scope** — only modify files allowed by the scope setting. In `full` scope, pick the highest-impact lever but stay deliberate.
 10. **Sweep, don't fixate** — in sweep mode, move on after 3 consecutive failures on one scorer. Come back to it later.
+11. **Never modify scorers** — NEVER modify files under `packages/eval/` or `packages/core/src/astral_core/scoring.py`. If a scorer seems miscalibrated, log the observation and move on. Scorer improvements require dedicated audit-eval cycles, not autoiterate.
+12. **Use LLM judges** — LLM judges are enabled by default. `--no-llm` is for rapid prototyping only — heuristic-only runs miss editorial quality, tone, faithfulness, and other quality dimensions.
+13. **Frame changes editorially** — commit messages should describe the reader-facing improvement ("intro now references specific missions"), not just the scorer delta ("intro_quality +0.05").
+14. **Floor-score guard** — if the floor score drops below the previous iteration's floor, treat it as a regression and DISCARD, even if the target scorer improved.
+15. **Prefer golden-oi** — use `golden-oi` dataset when available for reference judge coverage against The Orbital Index.
 
 ## Ending
 
