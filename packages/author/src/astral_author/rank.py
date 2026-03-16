@@ -167,7 +167,7 @@ class EngagementRanker:
         adjusted: list[tuple[ContentItem, float]] = []
         for item, s in scored:
             count = source_counts.get(item.source_name, 0)
-            adjusted.append((item, s * (0.85**count)))
+            adjusted.append((item, s * (0.80**count)))
             source_counts[item.source_name] = count + 1
         adjusted.sort(key=lambda x: x[1], reverse=True)
 
