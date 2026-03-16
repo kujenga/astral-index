@@ -157,6 +157,36 @@ _CATEGORY_PATTERNS: dict[SpaceCategory, re.Pattern[str]] = {
 }
 
 
+# Entertainment patterns — content with space keywords that isn't technical reporting.
+# Only triggers OFF_TOPIC when no strong technical category also matches.
+_ENTERTAINMENT_PATTERNS = re.compile(
+    r"\b("
+    r"astrophotograph|photo of the (day|week)|image of the (day|week)|"
+    r"night sky photo|picture of the week|"
+    r"stunning (image|view|photo|picture)|best space (photo|image)|"
+    r"how to photograph|camera (lens|gear|setup)|"
+    r"stargazing (guide|tip|calendar|event)|"
+    r"when to see|visible tonight|observe .{0,15} tonight|"
+    r"best .{0,15}(movies|shows|series|books)|"
+    r"(sci-fi|science fiction) (movie|film|show|series|review)|"
+    r"podcast .{0,10}(episode|ep\.|#\d)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Technical-action verbs that indicate real reporting even if entertainment
+# keywords are present (e.g., "Stunning JWST image reveals new galaxy formation")
+_TECHNICAL_OVERRIDE_PATTERNS = re.compile(
+    r"\b("
+    r"launch|discover|announc|develop|test|deploy|orbit|dock|"
+    r"land|detect|measur|mission|experiment|study|research|"
+    r"reveal|confirm|engineer|design|fund|contract|award|"
+    r"approv|regulat|legislat"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def classify_by_keywords(title: str, body: str | None = None) -> list[SpaceCategory]:
     """Classify content using keyword regex patterns.
 
@@ -169,5 +199,15 @@ def classify_by_keywords(title: str, body: str | None = None) -> list[SpaceCateg
     for category, pattern in _CATEGORY_PATTERNS.items():
         if pattern.search(title) or (body_prefix and pattern.search(body_prefix)):
             matches.add(category)
+
+    # Negative signal: entertainment content tagged OFF_TOPIC unless
+    # strong technical keywords override it.
+    # Body technical verbs suppress the signal (defer to LLM pass 2).
+    if (
+        not matches
+        and _ENTERTAINMENT_PATTERNS.search(title)
+        and not (body_prefix and _TECHNICAL_OVERRIDE_PATTERNS.search(body_prefix))
+    ):
+        matches.add(SpaceCategory.OFF_TOPIC)
 
     return sorted(matches, key=lambda c: c.value)
