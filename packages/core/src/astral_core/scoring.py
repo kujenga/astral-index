@@ -366,26 +366,38 @@ def intro_quality(
     intro_lower = introduction.lower()
     not_template = 0.0 if any(t in intro_lower for t in _TEMPLATES) else 1.0
 
-    # 3. Specificity: named entities / content-specific terms appear in intro
-    content_words: set[str] = set()
-    for section in output.get("sections", []):
-        for item in section.get("items", []):
-            title = item.get("title", "")
-            summary = item.get("summary", "")
-            for w in (title + " " + summary).split():
-                cleaned = re.sub(r"[^a-zA-Z0-9]", "", w)
-                if len(cleaned) > 4:
-                    content_words.add(cleaned.lower())
-
-    intro_words_set = {
-        re.sub(r"[^a-zA-Z0-9]", "", w).lower() for w in words if len(w) > 4
-    }
-    overlap_count = len(intro_words_set & content_words)
-    specificity = min(1.0, overlap_count / 4.0) if content_words else 0.5
+    # 3. Specificity: named entities (proper nouns, numbers, dates) in intro.
+    # Replaces word-overlap, which rewarded parroting content words.
+    entity_count = 0
+    # Proper nouns: capitalized words > 2 chars that aren't sentence-initial
+    sentences = re.split(r"[.!?]\s+", introduction)
+    for sent in sentences:
+        sent_words = sent.split()
+        # Skip first word of each sentence (always capitalized)
+        for w in sent_words[1:]:
+            cleaned = re.sub(r"[^a-zA-Z]", "", w)
+            if len(cleaned) > 2 and cleaned[0].isupper():
+                entity_count += 1
+    # Numbers
+    if re.search(r"\d+", introduction):
+        entity_count += 1
+    # Date patterns (years, month names)
+    if re.search(r"\b20\d{2}\b", introduction):
+        entity_count += 1
+    _MONTHS = (
+        "january|february|march|april|may|june|july|"
+        "august|september|october|november|december"
+    )
+    if re.search(rf"\b(?:{_MONTHS})\b", introduction, re.IGNORECASE):
+        entity_count += 1
+    specificity = min(1.0, entity_count / 4.0)
 
     # 4. Substance: intro references details from summaries NOT in titles
     title_words: set[str] = set()
     summary_words: set[str] = set()
+    intro_words_set = {
+        re.sub(r"[^a-zA-Z0-9]", "", w).lower() for w in words if len(w) > 4
+    }
     for section in output.get("sections", []):
         for item in section.get("items", []):
             for w in item.get("title", "").split():
@@ -426,10 +438,10 @@ def intro_quality(
 
     # Weighted combination
     score = (
-        0.20 * presence
+        0.25 * presence
         + 0.20 * not_template
-        + 0.25 * specificity
-        + 0.20 * substance
+        + 0.15 * specificity
+        + 0.25 * substance
         + 0.15 * engagement
     )
 
@@ -443,7 +455,7 @@ def intro_quality(
             "specificity": round(specificity, 3),
             "substance": round(substance, 3),
             "engagement": round(engagement, 3),
-            "specificity_overlap": overlap_count,
+            "entity_count": entity_count,
             "substance_overlap": summary_only_overlap,
             "engagement_signals": signals,
         },
