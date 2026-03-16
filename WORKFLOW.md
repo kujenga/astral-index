@@ -21,9 +21,17 @@ All stored in `.env` (gitignored), loaded automatically via `python-dotenv`.
 | `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Reddit scraping | Create app at reddit.com/prefs/apps |
 | `SOCIALDATA_API_KEY` | Twitter/X scraping | SocialData.tools bearer token; scraper skips if missing |
 | `BUTTONDOWN_API_KEY` | Newsletter delivery | Required for `draft` and `send` commands |
-| `BRAINTRUST_API_KEY` | Evaluation & prompt management | Enables experiments, datasets, prompt versioning, LLM judge routing via AI Proxy. Install extras: `uv sync --all-packages --extra braintrust` |
+| `BRAINTRUST_API_KEY` | Braintrust observability | Experiments, datasets, prompt versioning, AI Proxy judges. Install extras: `uv sync --all-packages --extra braintrust` |
+| `BRAINTRUST_TRACE` | Braintrust tracing (opt-in) | Set to `1` to enable LLM call tracing (counts toward free-tier limits) |
+| `PHOENIX_COLLECTOR_ENDPOINT` | Phoenix tracing | OTLP trace ingest URL (e.g. `http://localhost:6006/v1/traces`) |
+| `PHOENIX_API_URL` | Phoenix REST API | Datasets, experiments, prompts (e.g. `http://localhost:6006`) |
+| `PHOENIX_API_KEY` | Phoenix auth | Optional for self-hosted Phoenix |
+| `OPENAI_API_KEY` | Cross-model LLM judges (Phoenix path) | Direct OpenAI for judge calls when using Phoenix backend |
+| `ASTRAL_OBSERVABILITY_BACKEND` | Backend override | `auto` (default), `braintrust`, `phoenix`, or `noop` |
 
 Bluesky uses the public AT Protocol API — no credentials needed.
+
+**Backend selection:** By default (`auto`), the system auto-detects: `PHOENIX_COLLECTOR_ENDPOINT` → Phoenix, `BRAINTRUST_API_KEY` → Braintrust, else noop. Override with `ASTRAL_OBSERVABILITY_BACKEND`.
 
 ---
 
@@ -197,20 +205,31 @@ uv run pre-commit run --all-files         # ruff lint + format + ty type check
 
 ---
 
-## Quality Iteration (Braintrust)
+## Quality Iteration
 
-Braintrust enables reproducible evaluation: freeze a dataset, change code or prompts, and compare scores across runs. All commands below require `BRAINTRUST_API_KEY`.
+An observability backend (Braintrust or Phoenix) enables reproducible evaluation: freeze a dataset, change code or prompts, and compare scores across runs.
 
-### One-time setup
+### One-time setup (Braintrust)
 
 ```bash
-# Install Braintrust extras
 uv sync --all-packages --extra braintrust
-
-# Create the standard dataset tiers (smoke, standard, full)
 uv run --package astral-eval astral-eval setup-datasets
+uv run --package astral-eval astral-eval seed-prompts
+```
 
-# Push current hardcoded prompts to Braintrust as initial versions
+### One-time setup (Phoenix)
+
+```bash
+uv sync --all-packages --extra phoenix
+# Start Phoenix locally (or use a remote instance)
+phoenix serve  # runs on http://localhost:6006
+# Set env vars:
+export PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
+export PHOENIX_API_URL=http://localhost:6006
+# Optionally, for cross-model judges:
+export OPENAI_API_KEY=sk-...
+# Create datasets and seed prompts
+uv run --package astral-eval astral-eval setup-datasets
 uv run --package astral-eval astral-eval seed-prompts
 ```
 
