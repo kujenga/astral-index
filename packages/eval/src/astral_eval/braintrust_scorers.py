@@ -28,9 +28,11 @@ def wrap_scorer(scorer: Callable[..., Any], *, name: str | None = None) -> Calla
     ) -> dict[str, Any] | None:
         # Our scorers expect keyword-only output= and input=
         if is_async:
-            result: Score | None = await scorer(output=output, input=input)
+            result: Score | None = await scorer(
+                output=output, input=input, expected=expected
+            )
         else:
-            result = scorer(output=output, input=input)
+            result = scorer(output=output, input=input, expected=expected)
 
         if result is None:
             return None
@@ -68,6 +70,11 @@ def _make_all() -> dict[str, Callable]:
         summary_informativeness,
         tone_consistency,
     )
+    from .scorers.reference_judges import (
+        editorial_depth_comparison,
+        structural_similarity,
+        topic_overlap,
+    )
 
     scorers = [
         source_diversity,
@@ -86,6 +93,9 @@ def _make_all() -> dict[str, Callable]:
         summary_informativeness,
         introduction_quality,
         tone_consistency,
+        topic_overlap,
+        editorial_depth_comparison,
+        structural_similarity,
     ]
     return {f"bt_{s.__name__}": wrap_scorer(s) for s in scorers}
 
@@ -109,6 +119,9 @@ bt_summary_faithfulness = _ALL["bt_summary_faithfulness"]
 bt_summary_informativeness = _ALL["bt_summary_informativeness"]
 bt_introduction_quality = _ALL["bt_introduction_quality"]
 bt_tone_consistency = _ALL["bt_tone_consistency"]
+bt_topic_overlap = _ALL["bt_topic_overlap"]
+bt_editorial_depth_comparison = _ALL["bt_editorial_depth_comparison"]
+bt_structural_similarity = _ALL["bt_structural_similarity"]
 
 HEURISTIC_BT_SCORERS = [
     bt_source_diversity,
@@ -130,4 +143,9 @@ LLM_BT_SCORERS = [
     bt_introduction_quality,
     bt_tone_consistency,
 ]
-ALL_BT_SCORERS = HEURISTIC_BT_SCORERS + LLM_BT_SCORERS
+REFERENCE_BT_SCORERS = [
+    bt_topic_overlap,
+    bt_editorial_depth_comparison,
+    bt_structural_similarity,
+]
+ALL_BT_SCORERS = HEURISTIC_BT_SCORERS + LLM_BT_SCORERS + REFERENCE_BT_SCORERS

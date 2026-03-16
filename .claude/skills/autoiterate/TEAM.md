@@ -52,7 +52,7 @@ All serial-mode flags work in parallel mode:
 - `--scope` controls what teammates may modify
 - `--mode sweep` rotates targets across generations
 - `--until` checks the finish condition after each generation
-- `--no-llm` makes experiments faster and deterministic
+- `--no-llm` disables LLM judges (faster but misses quality dimensions)
 - `--dataset` / `--strategy` pass through to experiment commands
 
 ## Troubleshooting

@@ -24,11 +24,13 @@ You are running the Astral Index quality improvement loop. Your job is to diagno
 
 `$ARGUMENTS` may contain:
 - A scorer name to target (e.g., `source_diversity`, `category_coverage`, `editorial_quality`)
-- A dataset name (e.g., `golden-standard`, `golden-full`, `golden-smoke`)
+- A dataset name (e.g., `golden-standard`, `golden-full`, `golden-smoke`, `golden-oi`)
 - `--no-llm` to skip LLM judges (heuristic scorers only)
 - A free-text improvement goal
 
 Defaults: dataset = `golden-standard`, target = lowest scorer, LLM judges enabled.
+
+**Dataset tips:** Use `golden-oi` when iterating on topic selection, coverage, or editorial depth — it includes reference text from The Orbital Index and enables 3 additional reference comparison judges (`oi_topic_overlap`, `oi_editorial_depth`, `oi_structural_similarity`). These judges only fire on `golden-oi` rows. Pre-populate the cache first: `uv run --package astral-eval astral-eval fetch-oi-reference`.
 
 ## Step 1: Establish Baseline
 
