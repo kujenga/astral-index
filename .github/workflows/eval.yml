@@ -20,7 +20,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv sync --package astral-eval --extra braintrust
+      - run: uv sync --package astral-eval --extra braintrust --frozen
 
       - name: Run heuristic eval
         env:
@@ -42,7 +42,7 @@ jobs:
         with:
           enable-cache: true
 
-      - run: uv sync --package astral-eval --extra braintrust
+      - run: uv sync --package astral-eval --extra braintrust --frozen
 
       - name: Run full eval with LLM judges
         env:
