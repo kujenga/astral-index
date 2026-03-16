@@ -207,7 +207,11 @@ def section_balance(
     entropy_score = h / max_h if max_h > 0 else 1.0
 
     oversized = [c for c in counts if c > max_section_items]
-    cap_penalty = 0.2 * len(oversized)
+    # Smooth sigmoid penalty instead of flat 0.2 per oversized section.
+    # 1 item over cap -> ~0.08, 10 over -> ~0.15, avoids cliff incentive.
+    cap_penalty = sum(
+        0.15 * (1.0 / (1.0 + math.exp(-(c - max_section_items) / 3))) for c in oversized
+    )
 
     final = max(0.0, entropy_score - cap_penalty)
 
