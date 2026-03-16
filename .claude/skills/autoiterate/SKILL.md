@@ -56,7 +56,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 - See "Parallel Mode Loop" section below for the full protocol
 
 ### Other options
-- `--dataset NAME` — Braintrust dataset (default: `golden-standard`)
+- `--dataset NAME` — Braintrust dataset (default: `golden-standard`). Use `golden-oi` to enable reference comparison judges against The Orbital Index (requires `fetch-oi-reference` cache).
 - `--llm` — enable LLM judges (off by default — heuristic-only is faster, cheaper, and deterministic, giving you more iterations per session; use `--llm` for final validation or when optimizing LLM-judge-only dimensions like editorial_quality)
 - `--strategy NAME` — strategy to optimize (default: `baseline`)
 - `--generations N` — number of generations in parallel mode (default: 3, ignored in serial mode)
@@ -71,6 +71,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 /autoiterate --until "all scorers above 0.5"              # holistic improvement
 /autoiterate --scope prompts editorial_quality --llm       # tune prompts with LLM judges
 /autoiterate --scope author                                # restrict to pipeline code only
+/autoiterate --dataset golden-oi --llm                    # iterate with OI reference judges
 /loop 10 /autoiterate --mode sweep                        # 10 iterations across all scorers
 /autoiterate --parallel 3 source_diversity                 # 3 teammates per generation
 /autoiterate --parallel 3 --generations 5 --mode sweep     # 5 generations, 3 teammates each
