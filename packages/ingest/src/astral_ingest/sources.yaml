@@ -169,12 +169,6 @@ rss_sources:
     category_hints: [earth_observation]
     poll_interval_hours: 4
 
-  - name: "Geoawesome"
-    url: "https://geoawesome.com/feed"
-    content_type: excerpt
-    category_hints: [earth_observation]
-    poll_interval_hours: 4
-
   # Mars & Planetary Science
   - name: "NASA JPL News"
     url: "https://www.jpl.nasa.gov/feeds/news/"
@@ -222,7 +216,7 @@ rss_sources:
 
   # Satellite Communications
   - name: "Via Satellite"
-    url: "https://www.satellitetoday.com/category/telecom/feed/"
+    url: "https://www.satellitetoday.com/feed/"
     content_type: excerpt
     category_hints: [satellite_comms]
     poll_interval_hours: 4
