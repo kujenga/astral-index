@@ -10,6 +10,7 @@ from .models import (
     url_hash,
 )
 from .prompts import load_prompt
+from .scoring import REFUSAL_PATTERNS
 from .store import ContentStore
 from .text_utils import (
     NON_JOURNALISM_RE,
@@ -20,6 +21,7 @@ from .text_utils import (
 
 __all__ = [
     "NON_JOURNALISM_RE",
+    "REFUSAL_PATTERNS",
     "ContentItem",
     "ContentStore",
     "ContentType",

@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from astral_core import ContentItem, get_llm_client, load_prompt
+from astral_core import REFUSAL_PATTERNS, ContentItem, get_llm_client, load_prompt
 
 from .models import ItemSummary, NewsletterSection, SectionType
 
@@ -123,6 +123,14 @@ class LLMSummarizer:
                         messages=[{"role": "user", "content": user_msg}],
                     )
                     summary = resp.content[0].text.strip()
+                    # Fall back to excerpt if LLM refused or
+                    # produced an empty/useless response
+                    if not summary or REFUSAL_PATTERNS.search(summary):
+                        logger.warning(
+                            "LLM returned refusal for %s, using excerpt",
+                            item.title[:60],
+                        )
+                        summary = _excerpt_summary(item)
                 except Exception:
                     logger.warning(
                         "LLM summary failed for %s, using excerpt",

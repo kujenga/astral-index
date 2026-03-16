@@ -12,7 +12,13 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 
-from astral_core import NON_JOURNALISM_RE, ContentItem, SpaceCategory, title_similarity
+from astral_core import (
+    NON_JOURNALISM_RE,
+    ContentItem,
+    ContentType,
+    SpaceCategory,
+    title_similarity,
+)
 
 # Source quality tiers (0-1). Unlisted sources get DEFAULT_TIER.
 _SOURCE_TIERS: dict[str, float] = {
@@ -132,13 +138,18 @@ class EngagementRanker:
 
     def _score_item(self, item: ContentItem, now: datetime) -> float:
         """Compute a 0-1 relevance score using instance weights."""
-        return (
+        base = (
             self.w_recency
             * _recency_score(item.published_at, now, self.half_life_hours)
             + self.w_engagement * _engagement_score(item)
             + self.w_source * _source_tier(item.source_name)
             + self.w_quality * _quality_score(item)
         )
+        # Discount social-media items — tweets and Reddit posts are
+        # lower-value than original reporting articles
+        if item.content_type in (ContentType.TWEET, ContentType.REDDIT_POST):
+            base *= 0.7
+        return base
 
     async def rank(
         self,
@@ -159,9 +170,21 @@ class EngagementRanker:
         scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
 
+        # Source diminishing returns: discount repeated sources to encourage
+        # diversity. The 1st item from a source keeps its full score; the 2nd
+        # gets 0.85x, the 3rd 0.72x, etc. Re-sort so lower-ranked items from
+        # rare sources can beat the 4th item from a dominant source.
+        source_counts: dict[str, int] = {}
+        adjusted: list[tuple[ContentItem, float]] = []
+        for item, s in scored:
+            count = source_counts.get(item.source_name, 0)
+            adjusted.append((item, s * (0.85**count)))
+            source_counts[item.source_name] = count + 1
+        adjusted.sort(key=lambda x: x[1], reverse=True)
+
         # Semantic dedup: skip items too similar to an already-accepted item
         accepted: list[tuple[ContentItem, float]] = []
-        for item, s in scored:
+        for item, s in adjusted:
             if any(
                 title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
                 for a, _ in accepted

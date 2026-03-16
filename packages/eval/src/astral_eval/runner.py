@@ -11,12 +11,14 @@ from astral_core import ContentItem
 
 from .scorers.heuristic import (
     category_coverage,
+    content_originality,
     intro_quality,
     link_count,
     off_topic_leakage,
     section_balance,
     semantic_dedup,
     source_diversity,
+    summary_quality,
 )
 from .scorers.llm_judges import (
     coherence_flow,
@@ -44,6 +46,8 @@ HEURISTIC_SCORERS = [
     semantic_dedup,
     off_topic_leakage,
     intro_quality,
+    summary_quality,
+    content_originality,
 ]
 LLM_SCORERS = [
     editorial_quality,
