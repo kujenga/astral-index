@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from typing import Any
 
-from astral_core import ContentItem, get_llm_client, load_prompt
+from astral_core import REFUSAL_PATTERNS, ContentItem, get_llm_client, load_prompt
 
 from .models import ItemSummary, NewsletterSection, SectionType
 
@@ -29,20 +28,6 @@ but factual. Keep prose under 150 words per section. \
 Avoid cliché phrases like "remarkable convergence", "reshaping how we", \
 "unprecedented era", "golden age", "paradigm shift". Be specific and concrete. \
 Return ONLY the prose paragraphs, no headings or labels."""
-
-
-_REFUSAL_RE = re.compile(
-    r"(?i)("
-    r"I cannot provide a summary"
-    r"|cannot summarize"
-    r"|no body text"
-    r"|summary not available"
-    r"|unable to summarize"
-    r"|I don't have enough"
-    r"|no (?:article |source )?(?:text|content) "
-    r"(?:was |were )?(?:provided|included|available)"
-    r")"
-)
 
 
 def _truncate(text: str, max_chars: int = 3000) -> str:
@@ -140,7 +125,7 @@ class LLMSummarizer:
                     summary = resp.content[0].text.strip()
                     # Fall back to excerpt if LLM refused or
                     # produced an empty/useless response
-                    if not summary or _REFUSAL_RE.search(summary):
+                    if not summary or REFUSAL_PATTERNS.search(summary):
                         logger.warning(
                             "LLM returned refusal for %s, using excerpt",
                             item.title[:60],

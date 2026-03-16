@@ -450,7 +450,7 @@ def intro_quality(
     )
 
 
-_REFUSAL_PATTERNS = re.compile(
+REFUSAL_PATTERNS = re.compile(
     r"(?i)("
     r"I cannot provide a summary"
     r"|cannot summarize"
@@ -491,7 +491,7 @@ def summary_quality(
             if (
                 not summary
                 or len(summary) < 20
-                or _REFUSAL_PATTERNS.search(summary)
+                or REFUSAL_PATTERNS.search(summary)
                 or summary.strip() == title.strip()
             ):
                 bad_count += 1
@@ -500,7 +500,7 @@ def summary_quality(
                     if not summary
                     else (
                         "refusal"
-                        if _REFUSAL_PATTERNS.search(summary)
+                        if REFUSAL_PATTERNS.search(summary)
                         else "too_short"
                         if len(summary) < 20
                         else "title_echo"
