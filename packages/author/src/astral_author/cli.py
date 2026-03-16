@@ -184,15 +184,24 @@ async def _draft(
 
     if output_path:
         md_path = Path(output_path)
-        md_path.parent.mkdir(parents=True, exist_ok=True)
-        md_path.write_text(newsletter.markdown)
-        click.echo(f"Draft written to {md_path}")
-
-        json_path = md_path.with_suffix(".json")
-        json_path.write_text(newsletter.model_dump_json(indent=2))
-        click.echo(f"JSON written to {json_path}")
     else:
-        click.echo(newsletter.markdown)
+        # Default: stage in git-tracked issues/ directory
+        issue_date = newsletter.issue_date.isoformat()
+        md_path = Path("issues") / issue_date / "draft.md"
+
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.write_text(newsletter.markdown)
+    click.echo(f"Draft written to {md_path}")
+
+    json_path = md_path.with_suffix(".json")
+    json_path.write_text(newsletter.model_dump_json(indent=2))
+    click.echo(f"JSON written to {json_path}")
+
+    if not output_path:
+        issue_dir = md_path.parent
+        click.echo(
+            f"\nStaged at {issue_dir}/ — review draft.md, commit edits, then publish"
+        )
 
     click.echo("\n--- Pipeline stats ---")
     click.echo(f"Strategy: {newsletter.strategy_name}")

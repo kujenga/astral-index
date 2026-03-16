@@ -57,20 +57,23 @@ Each step is idempotent — re-running skips already-processed items.
 
 ### 2. Author
 
-Generate a newsletter draft from the ingested items.
+Generate a newsletter draft. By default, output is staged in the git-tracked `issues/` directory.
 
 ```bash
 # Preview structure without LLM cost
 uv run --package astral-author astral-author draft --since 7 --dry-run
 
-# Generate full draft (uses Claude Sonnet for summaries)
-uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
+# Generate full draft → stages at issues/{date}/draft.md + draft.json
+uv run --package astral-author astral-author draft --since 7
 
 # Or use the headlines-only strategy (no LLM, free)
-uv run --package astral-author astral-author draft --since 7 --strategy headlines-only --output data/drafts/draft.md
+uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
+
+# Write to a custom path instead of issues/ (legacy behavior)
+uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
 ```
 
-The `--output` flag writes both `draft.md` (rendered newsletter) and `draft.json` (full structured model for the delivery step).
+Without `--output`, the draft is staged at `issues/{issue_date}/draft.md` (human-editable markdown) and `issues/{issue_date}/draft.json` (machine metadata). The markdown is the source of truth for content; edit it freely.
 
 **Comparing strategies:**
 
@@ -80,17 +83,25 @@ uv run --package astral-author astral-author compare baseline headlines-only --s
 
 Outputs side-by-side `.md` + `.json` files and a comparison table (word count, sections, generation time).
 
-**Result:** A polished markdown newsletter and its JSON sidecar in `data/drafts/`.
+**Result:** A staged newsletter in `issues/{date}/` ready for review.
 
-### 3. Review
+### 3. Review & Edit
 
-Read the generated markdown. Check for:
-- Factual accuracy of summaries
-- Link quality and relevance
-- Section balance and categorization
-- Tone and readability
+The `issues/{date}/draft.md` file is git-tracked and human-editable. This is the editorial review step:
 
-If something's off, tweak parameters and re-run `draft`, or edit the markdown directly. (If editing markdown directly, also update the `.json` sidecar or regenerate it.)
+1. Read the generated markdown. Check for factual accuracy, link quality, section balance, and tone.
+2. Edit `draft.md` directly — your edits become the source of truth for delivery.
+3. Commit your edits for revision history:
+
+```bash
+git add issues/2026-03-15/
+git commit -m "issue 2026-03-15: initial draft"
+
+# ... make more edits ...
+git commit -am "issue 2026-03-15: fix Artemis summary, reorder sections"
+```
+
+No need to update `draft.json` — the serve CLI reads markdown from `draft.md` and metadata from `draft.json` independently.
 
 ### 4. Evaluate (optional)
 
@@ -98,28 +109,33 @@ Score the draft before sending. Heuristic scorers (source diversity, category co
 
 ```bash
 # Heuristic only (free, fast)
-uv run --package astral-eval astral-eval quality --since 7 --no-llm --draft-file data/drafts/draft.json
+uv run --package astral-eval astral-eval quality --since 7 --no-llm --draft-file issues/2026-03-15/draft.json
 
 # Full eval with LLM judges
-uv run --package astral-eval astral-eval quality --since 7 --draft-file data/drafts/draft.json
+uv run --package astral-eval astral-eval quality --since 7 --draft-file issues/2026-03-15/draft.json
 
 # Score an existing draft file (heuristic only, logs to Braintrust if available)
-uv run --package astral-eval astral-eval score data/drafts/draft.json --since 7
+uv run --package astral-eval astral-eval score issues/2026-03-15/draft.json --since 7
 ```
 
 Online scoring also runs automatically during `draft` — heuristic scores are logged to the current Braintrust span if tracing is active.
 
 ### 5. Deliver
 
-Push the draft to Buttondown, review in their UI, then send.
+Push the draft to Buttondown, review in their UI, then send. The serve CLI accepts a date string and reads from `issues/{date}/` — it uses `draft.md` for the email body (respecting your edits) and `draft.json` for title/metadata.
 
 ```bash
-# Create a draft in Buttondown
-uv run --package astral-serve astral-serve draft data/drafts/draft.json
+# Create a draft in Buttondown (reads from issues/2026-03-15/)
+uv run --package astral-serve astral-serve draft 2026-03-15
 
 # Review in the Buttondown dashboard, then send
-uv run --package astral-serve astral-serve send 2026-03-01
+uv run --package astral-serve astral-serve send 2026-03-15
+
+# Commit the published state
+git commit -am "issue 2026-03-15: published"
 ```
+
+You can also pass a JSON file path directly (legacy behavior): `astral-serve draft data/drafts/draft.json`.
 
 Both commands accept `--dry-run`. The `send` command is idempotent — it skips if the issue is already sent.
 
@@ -127,10 +143,12 @@ Both commands accept `--dry-run`. The `send` command is idempotent — it skips 
 
 ```bash
 uv run --package astral-serve astral-serve status              # all issues
-uv run --package astral-serve astral-serve status 2026-03-01   # one issue
+uv run --package astral-serve astral-serve status 2026-03-15   # one issue
 ```
 
-**State is tracked** in `data/newsletters/{YYYY-MM-DD}/meta.json` (publish record) alongside `draft.md` (markdown snapshot).
+**State is tracked** in two places:
+- `issues/{date}/meta.json` — lightweight staging state (Buttondown email ID, publish status)
+- `data/newsletters/{date}/meta.json` — full Buttondown publish record (unchanged from before)
 
 ---
 
@@ -146,13 +164,17 @@ uv run --package astral-ingest astral-ingest scrape
 uv run --package astral-ingest astral-ingest expand --since 7
 uv run --package astral-ingest astral-ingest classify --since 7
 
-# Author
-uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
+# Author (stages at issues/{date}/)
+uv run --package astral-author astral-author draft --since 7
 
-# Review the draft, then deliver
-uv run --package astral-serve astral-serve draft data/drafts/draft.json
+# Review & edit issues/{date}/draft.md, then commit
+git add issues/ && git commit -m "issue YYYY-MM-DD: initial draft"
+
+# Deliver (reads from issues/{date}/)
+uv run --package astral-serve astral-serve draft YYYY-MM-DD
 # ... review in Buttondown UI ...
 uv run --package astral-serve astral-serve send YYYY-MM-DD
+git commit -am "issue YYYY-MM-DD: published"
 ```
 
 ---

@@ -92,10 +92,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Output paths
-DRAFT_BASE="data/drafts/${TODAY}_weekly"
-DRAFT_MD="${DRAFT_BASE}.md"
-DRAFT_JSON="${DRAFT_BASE}.json"
+# Output paths — staged in git-tracked issues/ directory
+ISSUE_DIR="issues/${TODAY}"
+DRAFT_MD="${ISSUE_DIR}/draft.md"
+DRAFT_JSON="${ISSUE_DIR}/draft.json"
 EVAL_OUTPUT="data/eval/${TODAY}_results.json"
 
 echo "Astral Index — Weekly Pipeline"
@@ -126,11 +126,14 @@ banner "Step 4/6 — Draft"
 if $DRY_RUN; then
     uv run --package astral-author astral-author draft --since "$SINCE" --dry-run
 else
-    uv run --package astral-author astral-author draft --since "$SINCE" --output "$DRAFT_MD"
+    # Default staging writes to issues/{date}/ automatically (no --output needed)
+    uv run --package astral-author astral-author draft --since "$SINCE"
     echo ""
-    echo "Draft written to:"
+    echo "Draft staged at:"
     echo "  Markdown: $DRAFT_MD"
     echo "  JSON:     $DRAFT_JSON"
+    echo ""
+    echo "Review ${ISSUE_DIR}/draft.md, commit edits, then re-run with --send"
 fi
 
 # ── Step 5: Evaluate ──────────────────────────────────────────────────────────
@@ -151,10 +154,10 @@ fi
 if $SEND; then
     if $DRY_RUN; then
         banner "Step 6/6 — Deliver (dry run)"
-        uv run --package astral-serve astral-serve draft "$DRAFT_JSON" --dry-run
+        uv run --package astral-serve astral-serve draft "$TODAY" --dry-run
     else
         banner "Step 6/6 — Deliver"
-        uv run --package astral-serve astral-serve draft "$DRAFT_JSON"
+        uv run --package astral-serve astral-serve draft "$TODAY"
         echo ""
         echo "Draft pushed to Buttondown. Review it in the dashboard, then confirm below."
         echo ""
@@ -170,7 +173,7 @@ if $SEND; then
 else
     banner "Step 6/6 — Deliver (skipped: use --send to enable)"
     echo "To publish this draft manually:"
-    echo "  uv run --package astral-serve astral-serve draft $DRAFT_JSON"
+    echo "  uv run --package astral-serve astral-serve draft $TODAY"
     echo "  uv run --package astral-serve astral-serve send $TODAY"
 fi
 

@@ -42,9 +42,10 @@ test -f .env && grep -q "BUTTONDOWN_API_KEY" .env && echo "BUTTONDOWN_API_KEY: s
 
 Report which keys are present. If `--send` was requested and `BUTTONDOWN_API_KEY` is missing, warn that delivery won't work.
 
-Set output paths:
-- `DRAFT_MD=data/drafts/${TODAY}_weekly.md`
-- `DRAFT_JSON=data/drafts/${TODAY}_weekly.json`
+Set output paths (staged in git-tracked `issues/` directory):
+- `ISSUE_DIR=issues/${TODAY}`
+- `DRAFT_MD=${ISSUE_DIR}/draft.md`
+- `DRAFT_JSON=${ISSUE_DIR}/draft.json`
 - `EVAL_OUTPUT=data/eval/${TODAY}_results.json`
 
 ## Step 2: Ingest
@@ -88,14 +89,14 @@ Ask the user to confirm the strategy or pick a different one.
 
 ## Step 4: Draft
 
-Generate the newsletter:
+Generate the newsletter (defaults to staging in `issues/{TODAY}/`):
 ```bash
-uv run --package astral-author astral-author draft --since {SINCE} --strategy {STRATEGY} --output {DRAFT_MD}
+uv run --package astral-author astral-author draft --since {SINCE} --strategy {STRATEGY}
 ```
 
-If `--dry-run`, add `--dry-run` and skip the output flag.
+If `--dry-run`, add `--dry-run`.
 
-Confirm the draft files were written:
+Confirm the draft files were staged:
 ```bash
 ls -la {DRAFT_MD} {DRAFT_JSON}
 ```
@@ -115,6 +116,12 @@ Read the eval results. Present a score table.
 - Flag the problematic scorers
 - Recommend re-generating with a different strategy
 - Ask whether to continue, re-draft, or abort
+
+## Step 5.5: Stage for Review
+
+If not `--dry-run`, the draft is now in `issues/{TODAY}/`. Tell the user:
+
+> Draft staged at `issues/{TODAY}/`. You can edit `draft.md`, commit edits, then continue to delivery.
 
 ## Step 6: Editorial Review
 
@@ -139,8 +146,8 @@ Only proceed if:
 - Quality gates passed (or user overrode)
 
 ```bash
-# Push draft to Buttondown
-uv run --package astral-serve astral-serve draft {DRAFT_JSON}
+# Push draft to Buttondown (reads from issues/{TODAY}/)
+uv run --package astral-serve astral-serve draft {TODAY}
 ```
 
 After the draft is pushed, ask for **explicit confirmation** before sending:
@@ -161,5 +168,5 @@ uv run --package astral-serve astral-serve status {TODAY}
 
 - This skill has three hard stops requiring user input: strategy selection, quality gate, and send confirmation. Everything else runs autonomously.
 - If any step fails, report the error and ask whether to retry, skip, or abort.
-- The draft JSON sidecar (`{DRAFT_JSON}`) is what gets sent to Buttondown, not the markdown.
+- The serve CLI now accepts a date string (e.g., `2026-03-15`) and reads from `issues/{date}/`. It uses `draft.md` for the email body (respecting human edits) and `draft.json` for metadata.
 - All `uv run` commands should be run from the project root directory.
