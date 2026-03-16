@@ -20,6 +20,15 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _extract_content(content: Any) -> str:
+    """Extract text from a Phoenix content field (str or list of blocks)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list) and content:
+        return content[0].get("text", "")
+    return ""
+
+
 def _api_url() -> str:
     return os.environ.get("PHOENIX_API_URL", "http://localhost:6006")
 
@@ -207,37 +216,24 @@ class PhoenixPrompts:
         try:
             client = _get_client()
             prompt = client.prompts.get(prompt_identifier=slug)
-            if template_vars:
-                formatted = prompt.format(variables=template_vars)
-                # formatted is a dict with "messages" key
-                messages = formatted.get("messages", [])
-                for msg in messages:
-                    if msg.get("role") == "system":
-                        content = msg.get("content", "")
-                        if isinstance(content, list):
-                            # Handle structured content blocks
-                            return content[0].get("text", "")
-                        return content
-                if messages:
-                    content = messages[0].get("content", "")
-                    if isinstance(content, list):
-                        return content[0].get("text", "")
-                    return content
-            else:
-                # Access template messages directly
-                template = getattr(prompt, "_template", None) or {}
-                messages = template.get("messages", [])
-                for msg in messages:
-                    content = msg.get("content", "")
-                    if msg.get("role") == "system":
-                        if isinstance(content, list):
-                            return content[0].get("text", "")
-                        return content
-                if messages:
-                    content = messages[0].get("content", "")
-                    if isinstance(content, list):
-                        return content[0].get("text", "")
-                    return content
+
+            # prompt.format() returns an AnthropicPrompt or similar
+            # with kwargs['system'] for system messages
+            formatted = prompt.format(variables=template_vars if template_vars else {})
+
+            # AnthropicPrompt puts system content in kwargs['system']
+            system = getattr(formatted, "kwargs", {}).get("system")
+            if system:
+                return system
+
+            # Fallback: check messages list
+            messages = getattr(formatted, "messages", [])
+            for msg in messages:
+                if isinstance(msg, dict) and msg.get("role") == "system":
+                    return _extract_content(msg.get("content", ""))
+            if messages and isinstance(messages[0], dict):
+                return _extract_content(messages[0].get("content", ""))
+
         except Exception:
             logger.debug(
                 "Failed to load prompt '%s' from Phoenix, using fallback",
@@ -252,13 +248,17 @@ class PhoenixPrompts:
         seeded: list[str] = []
         for p in prompts:
             try:
+                # PromptVersion takes messages as positional arg
+                model = p.get("model", "")
+                provider = "ANTHROPIC" if "claude" in model else "OPENAI"
                 client.prompts.create(
                     name=p["slug"],
                     version=PromptVersion(
-                        messages=[{"role": "system", "content": p["prompt_text"]}],
-                        model_name=p.get("model", ""),
+                        [{"role": "system", "content": p["prompt_text"]}],
+                        model_name=model,
+                        model_provider=provider,
+                        description=p.get("description", ""),
                     ),
-                    prompt_description=p.get("description", ""),
                 )
                 logger.info("Created prompt '%s' in Phoenix", p["slug"])
             except Exception:
