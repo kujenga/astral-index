@@ -17,6 +17,7 @@ from .scorers.heuristic import (
     section_balance,
     semantic_dedup,
     source_diversity,
+    summary_quality,
 )
 from .scorers.llm_judges import (
     coherence_flow,
@@ -39,6 +40,7 @@ HEURISTIC_SCORERS = [
     semantic_dedup,
     off_topic_leakage,
     intro_quality,
+    summary_quality,
 ]
 LLM_SCORERS = [
     editorial_quality,

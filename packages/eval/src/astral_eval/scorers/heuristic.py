@@ -13,6 +13,7 @@ from astral_core.scoring import (
     section_balance,
     semantic_dedup,
     source_diversity,
+    summary_quality,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "section_balance",
     "semantic_dedup",
     "source_diversity",
+    "summary_quality",
 ]

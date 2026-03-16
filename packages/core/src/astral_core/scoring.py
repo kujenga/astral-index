@@ -450,6 +450,84 @@ def intro_quality(
     )
 
 
+_REFUSAL_PATTERNS = re.compile(
+    r"(?i)("
+    r"I cannot provide a summary"
+    r"|cannot summarize"
+    r"|no body text"
+    r"|not provided"
+    r"|summary not available"
+    r"|unable to summarize"
+    r"|I don't have enough"
+    r"|no (?:article |source )?(?:text|content) "
+    r"(?:was |were )?(?:provided|included|available)"
+    r")"
+)
+
+
+def summary_quality(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score:
+    """Detect LLM refusals, empty summaries, and headline-only rewrites.
+
+    Checks each output item's summary for:
+    - Refusal phrases ("I cannot provide a summary", etc.)
+    - Very short summaries (< 20 chars, likely just a title echo)
+    - Empty/missing summaries
+    Each bad summary deducts 1/total from 1.0.
+    """
+    total = 0
+    bad_count = 0
+    bad_items: list[str] = []
+
+    for section in output.get("sections", []):
+        for item in section.get("items", []):
+            total += 1
+            summary = item.get("summary", "")
+            title = item.get("title", "")
+            if (
+                not summary
+                or len(summary) < 20
+                or _REFUSAL_PATTERNS.search(summary)
+                or summary.strip() == title.strip()
+            ):
+                bad_count += 1
+                reason = (
+                    "empty"
+                    if not summary
+                    else (
+                        "refusal"
+                        if _REFUSAL_PATTERNS.search(summary)
+                        else "too_short"
+                        if len(summary) < 20
+                        else "title_echo"
+                    )
+                )
+                bad_items.append(f"{title[:50]}... ({reason})")
+
+    if total == 0:
+        return Score(
+            name="summary_quality",
+            score=1.0,
+            metadata={"total": 0, "bad": 0},
+        )
+
+    final = 1.0 - (bad_count / total)
+
+    return Score(
+        name="summary_quality",
+        score=round(final, 3),
+        metadata={
+            "total": total,
+            "bad": bad_count,
+            "bad_items": bad_items,
+        },
+    )
+
+
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
@@ -458,4 +536,5 @@ HEURISTIC_SCORERS = [
     semantic_dedup,
     off_topic_leakage,
     intro_quality,
+    summary_quality,
 ]
