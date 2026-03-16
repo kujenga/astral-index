@@ -8,6 +8,7 @@ from astral_core.scoring import (
     Score,
     category_coverage,
     content_originality,
+    english_language,
     intro_quality,
     link_count,
     off_topic_leakage,
@@ -21,6 +22,7 @@ __all__ = [
     "Score",
     "category_coverage",
     "content_originality",
+    "english_language",
     "intro_quality",
     "link_count",  # kept for backward compat, removed from active scorer lists
     "off_topic_leakage",

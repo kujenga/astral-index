@@ -6,6 +6,7 @@ import pytest
 
 from astral_eval.scorers.heuristic import (
     category_coverage,
+    english_language,
     off_topic_leakage,
     section_balance,
     semantic_dedup,
@@ -480,3 +481,140 @@ class TestOffTopicLeakage:
         assert result.metadata["off_topic"] == 2
         # Only 1 is entertainment (photo), the other is non-journalism (games)
         assert result.metadata["entertainment"] == 1
+
+
+# -- english_language --
+
+
+class TestEnglishLanguage:
+    def test_all_english(self):
+        """All-English newsletter -> score 1.0."""
+        items = [
+            _item(
+                "SpaceNews",
+                title="SpaceX launches Starship",
+                summary=(
+                    "SpaceX successfully launched its"
+                    " Starship vehicle on an orbital test."
+                ),
+            ),
+            _item(
+                "Ars Technica",
+                title="NASA Artemis III crew selections",
+                summary=(
+                    "NASA revealed the astronauts who"
+                    " will fly on the Artemis III mission."
+                ),
+            ),
+        ]
+        intro = "This week saw major developments in commercial spaceflight."
+        output = {
+            "introduction": intro,
+            "sections": [_items_section(items)],
+        }
+        result = english_language(output=output)
+        assert result.score == 1.0
+
+    def test_japanese_title(self):
+        """Newsletter with a Japanese title -> score < 1.0."""
+        ja_title = (
+            "\u5c0f\u578b\u6708\u7740\u9678\u5b9f\u8a3c\u6a5f"
+            "\u300cSLIM\u300d\u304c\u6708\u9762\u7740\u9678\u306b\u6210\u529f"
+        )
+        items = [
+            _item(
+                "SpaceNews",
+                title="SpaceX launches Starship",
+                summary="SpaceX launched Starship.",
+            ),
+            _item(
+                "JAXA",
+                title=ja_title,
+                summary=("JAXA SLIM lander touched down on the lunar surface."),
+            ),
+        ]
+        intro = "This week in space technology news and exploration updates."
+        output = {
+            "introduction": intro,
+            "sections": [_items_section(items)],
+        }
+        result = english_language(output=output)
+        assert result.score < 1.0
+        assert result.metadata["non_english_count"] >= 1
+        # langdetect may report "ja" or "ko" for short CJK text
+        langs = [d["detected_language"] for d in result.metadata["non_english"]]
+        assert any(lang != "en" for lang in langs)
+
+    def test_french_summary(self):
+        """Newsletter with a French summary -> score < 1.0."""
+        fr_summary = (
+            "Le lanceur Ariane 6 a effectu\u00e9 son"
+            " premier vol d'essai avec succ\u00e8s"
+            " depuis le Centre Spatial Guyanais."
+        )
+        items = [
+            _item(
+                "ESA",
+                title="ESA Ariane 6 launch update",
+                summary=fr_summary,
+            ),
+        ]
+        output = {
+            "introduction": ("European space developments dominated this week."),
+            "sections": [_items_section(items)],
+        }
+        result = english_language(output=output)
+        assert result.score < 1.0
+        langs = [d["detected_language"] for d in result.metadata["non_english"]]
+        assert "fr" in langs
+
+    def test_short_text_skipped(self):
+        """Very short text (< 20 chars) -> skipped."""
+        items = [
+            _item(
+                "SpaceNews",
+                title="Short",
+                summary="Tiny text.",
+            ),
+        ]
+        intro = "This week saw major developments in commercial spaceflight."
+        output = {
+            "introduction": intro,
+            "sections": [_items_section(items)],
+        }
+        result = english_language(output=output)
+        # Short title/summary skipped; only intro checked
+        assert result.score == 1.0
+        assert result.metadata["total_checked"] >= 1
+
+    def test_empty_newsletter(self):
+        """Empty newsletter -> score 1.0."""
+        output = {"introduction": "", "sections": []}
+        result = english_language(output=output)
+        assert result.score == 1.0
+        assert result.metadata["total_checked"] == 0
+
+    def test_non_english_prose(self):
+        """Non-English section prose -> score < 1.0."""
+        items = [
+            _item(
+                "SpaceNews",
+                title="SpaceX launches Starship",
+                summary=("SpaceX successfully launched its Starship on a full test."),
+            ),
+        ]
+        section = _items_section(items)
+        section["prose"] = (
+            "Der Raketenstart war ein voller"
+            " Erfolg und markiert einen"
+            " Meilenstein in der Raumfahrt."
+        )
+        intro = "This week saw major developments in commercial spaceflight."
+        output = {
+            "introduction": intro,
+            "sections": [section],
+        }
+        result = english_language(output=output)
+        assert result.score < 1.0
+        langs = [d["detected_language"] for d in result.metadata["non_english"]]
+        assert "de" in langs

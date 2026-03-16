@@ -35,13 +35,16 @@ Given an article title and body text, write a 1-2 sentence summary that captures
 the key news. Be factual and specific. Do not editorialize. \
 Do not infer dates, statistics, or claims not explicitly stated in the source text. \
 If the source text is very short, paraphrase it concisely rather than elaborating. \
-Return ONLY the summary text, no labels or prefixes."""
+Always write in English. If the source material is not in English, translate it. \
+If the title is not in English, return a translated English title on the first line \
+prefixed with "TRANSLATED_TITLE:", followed by the summary on the next line. \
+If the title is already in English, return only the summary."""
 
 _PROSE_SYSTEM = """\
 You are the editor of a space technology newsletter. Given several article \
 summaries from the same topic area, write 2-3 editorial paragraphs that tie \
 the stories together, highlight trends, and give readers context. Be engaging \
-but factual. Keep prose under 150 words per section. \
+but factual. Keep prose under 150 words per section. Write entirely in English. \
 Avoid cliché phrases like "remarkable convergence", "reshaping how we", \
 "unprecedented era", "golden age", "paradigm shift". Be specific and concrete. \
 Return ONLY the prose paragraphs, no headings or labels."""
@@ -139,7 +142,17 @@ class LLMSummarizer:
                         system=system,
                         messages=[{"role": "user", "content": user_msg}],
                     )
-                    summary = resp.content[0].text.strip()
+                    raw_text = resp.content[0].text.strip()
+                    # Check for translated title prefix
+                    translated_title = None
+                    if raw_text.startswith("TRANSLATED_TITLE:"):
+                        lines = raw_text.split("\n", 1)
+                        translated_title = (
+                            lines[0].removeprefix("TRANSLATED_TITLE:").strip()
+                        )
+                        summary = lines[1].strip() if len(lines) > 1 else ""
+                    else:
+                        summary = raw_text
                     # Fall back to excerpt if LLM refused or
                     # produced an empty/useless response
                     if not summary or _SUMMARIZER_REFUSAL_RE.search(summary):
@@ -155,10 +168,11 @@ class LLMSummarizer:
                         exc_info=True,
                     )
                     summary = _excerpt_summary(item)
+                    translated_title = None
 
             return ItemSummary(
                 item_id=item.id,
-                title=item.title,
+                title=translated_title or item.title,
                 source_url=item.source_url,
                 source_name=item.source_name,
                 summary=summary,

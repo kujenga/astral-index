@@ -601,6 +601,73 @@ def content_originality(
     )
 
 
+def english_language(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score:
+    """Detect non-English text in the newsletter output.
+
+    Checks item titles, summaries, section prose, and the introduction.
+    Skips texts shorter than 20 characters where language detection is unreliable.
+    Score = 1.0 - (non_english_count / total_checked).
+    """
+    from langdetect import LangDetectException, detect
+
+    total_checked = 0
+    non_english: list[dict[str, str]] = []
+    min_length = 20
+
+    def _check(text: str, label: str) -> None:
+        nonlocal total_checked
+        if not text or len(text.strip()) < min_length:
+            return
+        total_checked += 1
+        try:
+            lang = detect(text)
+        except LangDetectException:
+            return
+        if lang != "en":
+            non_english.append(
+                {
+                    "label": label,
+                    "snippet": text[:80],
+                    "detected_language": lang,
+                }
+            )
+
+    # Check introduction
+    _check(output.get("introduction", ""), "introduction")
+
+    # Check sections
+    for section in output.get("sections", []):
+        _check(section.get("prose", ""), f"prose: {section.get('heading', '?')}")
+        for item in section.get("items", []):
+            title = item.get("title", "")
+            _check(title, f"title: {title[:40]}")
+            _check(item.get("summary", ""), f"summary: {title[:40]}")
+
+    if total_checked == 0:
+        return Score(
+            name="english_language",
+            score=1.0,
+            metadata={"total_checked": 0, "non_english": []},
+        )
+
+    score = 1.0 - (len(non_english) / total_checked)
+
+    return Score(
+        name="english_language",
+        score=round(score, 3),
+        metadata={
+            "total_checked": total_checked,
+            "non_english_count": len(non_english),
+            "non_english": non_english,
+        },
+    )
+
+
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
@@ -610,4 +677,5 @@ HEURISTIC_SCORERS = [
     intro_quality,
     summary_quality,
     content_originality,
+    english_language,
 ]
