@@ -13,6 +13,7 @@ from .prompts import load_prompt
 from .scoring import REFUSAL_PATTERNS
 from .store import ContentStore
 from .text_utils import (
+    NON_INFORMATIONAL_RE,
     NON_JOURNALISM_RE,
     levenshtein_ratio,
     normalize_title,
@@ -20,6 +21,7 @@ from .text_utils import (
 )
 
 __all__ = [
+    "NON_INFORMATIONAL_RE",
     "NON_JOURNALISM_RE",
     "REFUSAL_PATTERNS",
     "ContentItem",

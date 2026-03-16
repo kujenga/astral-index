@@ -16,7 +16,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from .text_utils import NON_JOURNALISM_RE, title_similarity
+from .text_utils import NON_INFORMATIONAL_RE, NON_JOURNALISM_RE, title_similarity
 
 
 @dataclass
@@ -299,6 +299,7 @@ def off_topic_leakage(
     total = 0
     off_topic_count = 0
     off_topic_titles: list[str] = []
+    entertainment_titles: list[str] = []
 
     for section in output.get("sections", []):
         for item in section.get("items", []):
@@ -306,9 +307,13 @@ def off_topic_leakage(
             item_id = item.get("item_id")
             cats = input_item_cats.get(item_id, []) if item_id else []
             title = item.get("title", "")
-            if not cats or "off_topic" in cats or NON_JOURNALISM_RE.search(title):
+            is_non_journalism = NON_JOURNALISM_RE.search(title)
+            is_entertainment = NON_INFORMATIONAL_RE.search(title)
+            if not cats or "off_topic" in cats or is_non_journalism or is_entertainment:
                 off_topic_count += 1
                 off_topic_titles.append(item.get("title", "?")[:60])
+                if is_entertainment:
+                    entertainment_titles.append(item.get("title", "?")[:60])
 
     if total == 0:
         return Score(
@@ -326,6 +331,8 @@ def off_topic_leakage(
             "total": total,
             "off_topic": off_topic_count,
             "off_topic_titles": off_topic_titles,
+            "entertainment": len(entertainment_titles),
+            "entertainment_titles": entertainment_titles,
         },
     )
 

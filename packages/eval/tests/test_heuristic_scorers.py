@@ -419,3 +419,64 @@ class TestOffTopicLeakage:
         output = {"sections": [_items_section(items)]}
         result = off_topic_leakage(output=output, input=input_items)
         assert result.score == 1.0
+
+    def test_entertainment_title_flagged(self):
+        """Item with entertainment title -> flagged as off-topic."""
+        input_items = [
+            {"id": "a1", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="Stunning image of Jupiter from Hubble"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.0
+        assert result.metadata["off_topic"] == 1
+        assert result.metadata["entertainment"] == 1
+
+    def test_stargazing_guide_flagged(self):
+        """Stargazing guide -> flagged as entertainment."""
+        input_items = [
+            {"id": "a1", "categories": ["space_science"]},
+        ]
+        items = [
+            _item(
+                "A", item_id="a1", title="March stargazing guide: planets and meteors"
+            ),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.0
+        assert result.metadata["entertainment"] == 1
+
+    def test_scifi_review_flagged(self):
+        """Sci-fi review -> flagged as entertainment."""
+        input_items = [
+            {"id": "a1", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="New sci-fi movie review: Gravity 2"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        assert result.score == 0.0
+        assert result.metadata["entertainment"] == 1
+
+    def test_entertainment_metadata_tracked_separately(self):
+        """Entertainment items tracked in separate metadata field."""
+        input_items = [
+            {"id": "a1", "categories": ["launch_vehicles"]},
+            {"id": "a2", "categories": ["space_science"]},
+            {"id": "a3", "categories": ["space_science"]},
+        ]
+        items = [
+            _item("A", item_id="a1", title="SpaceX launches Starship"),
+            _item("B", item_id="a2", title="Photo of the Day: Nebula"),
+            _item("C", item_id="a3", title="Best AI games to play"),
+        ]
+        output = {"sections": [_items_section(items)]}
+        result = off_topic_leakage(output=output, input=input_items)
+        # 2 out of 3 are off-topic
+        assert result.metadata["off_topic"] == 2
+        # Only 1 is entertainment (photo), the other is non-journalism (games)
+        assert result.metadata["entertainment"] == 1

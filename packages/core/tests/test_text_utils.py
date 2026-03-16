@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from astral_core.text_utils import NON_JOURNALISM_RE, _token_jaccard, title_similarity
+from astral_core.text_utils import (
+    NON_INFORMATIONAL_RE,
+    NON_JOURNALISM_RE,
+    _token_jaccard,
+    title_similarity,
+)
 
 
 class TestTokenJaccard:
@@ -98,3 +103,82 @@ class TestNonJournalismRe:
 
     def test_best_video_games(self):
         assert NON_JOURNALISM_RE.search("Best video games set in space")
+
+
+class TestNonInformationalRe:
+    def test_photo_of_the_day(self):
+        assert NON_INFORMATIONAL_RE.search("Photo of the Day: Mars from Perseverance")
+
+    def test_image_of_the_week(self):
+        assert NON_INFORMATIONAL_RE.search("Image of the Week: Andromeda Galaxy")
+
+    def test_astrophotography(self):
+        assert NON_INFORMATIONAL_RE.search("Tips for astrophotography beginners")
+
+    def test_stunning_image(self):
+        assert NON_INFORMATIONAL_RE.search(
+            "Stunning image of Jupiter captured by amateur"
+        )
+
+    def test_best_space_photos(self):
+        assert NON_INFORMATIONAL_RE.search("Best space photos of 2026")
+
+    def test_stargazing_guide(self):
+        assert NON_INFORMATIONAL_RE.search("March stargazing guide: what to look for")
+
+    def test_visible_tonight(self):
+        assert NON_INFORMATIONAL_RE.search("ISS visible tonight over North America")
+
+    def test_when_to_see(self):
+        assert NON_INFORMATIONAL_RE.search("When to see the next meteor shower")
+
+    def test_scifi_movie_review(self):
+        assert NON_INFORMATIONAL_RE.search("New sci-fi movie review: Interstellar 2")
+
+    def test_best_scifi_shows(self):
+        assert NON_INFORMATIONAL_RE.search(
+            "Best shows about space and sci-fi this year"
+        )
+
+    def test_podcast_episode(self):
+        assert NON_INFORMATIONAL_RE.search("Space podcast episode 42: Mars update")
+
+    def test_picture_of_the_week(self):
+        assert NON_INFORMATIONAL_RE.search("ESA picture of the week: aurora")
+
+    def test_how_to_photograph(self):
+        assert NON_INFORMATIONAL_RE.search("How to photograph the Milky Way")
+
+    def test_camera_gear_for_night_sky(self):
+        assert NON_INFORMATIONAL_RE.search("Best camera gear for night sky photography")
+
+    def test_normal_headline_not_matched(self):
+        assert (
+            NON_INFORMATIONAL_RE.search(
+                "SpaceX launches Starship on orbital test flight"
+            )
+            is None
+        )
+
+    def test_technical_article_not_matched(self):
+        assert (
+            NON_INFORMATIONAL_RE.search("NASA selects new lunar lander design") is None
+        )
+
+    def test_science_discovery_not_matched(self):
+        assert (
+            NON_INFORMATIONAL_RE.search("JWST discovers high-redshift galaxy at z=14")
+            is None
+        )
+
+    def test_policy_article_not_matched(self):
+        assert (
+            NON_INFORMATIONAL_RE.search("Congress approves NASA budget increase")
+            is None
+        )
+
+    def test_launch_report_not_matched(self):
+        assert (
+            NON_INFORMATIONAL_RE.search("Rocket Lab Electron launches radar satellite")
+            is None
+        )

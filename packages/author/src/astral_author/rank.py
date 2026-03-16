@@ -13,6 +13,7 @@ import math
 from datetime import UTC, datetime
 
 from astral_core import (
+    NON_INFORMATIONAL_RE,
     NON_JOURNALISM_RE,
     ContentItem,
     ContentType,
@@ -165,6 +166,8 @@ class EngagementRanker:
             and not (not i.categories and _quality_score(i) < 0.3)
             # Block non-journalism content (games, puzzles) that slipped past classifier
             and not NON_JOURNALISM_RE.search(i.title)
+            # Block entertainment content (photos, observing guides, sci-fi reviews)
+            and not NON_INFORMATIONAL_RE.search(i.title)
         ]
         scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)

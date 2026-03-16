@@ -20,6 +20,24 @@ NON_JOURNALISM_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Matches entertainment content (photography, observing guides, sci-fi reviews)
+# that may have valid space keywords but isn't technical reporting.
+NON_INFORMATIONAL_RE = re.compile(
+    r"\bphoto of the (day|week)\b|\bimage of the (day|week)\b"
+    r"|\bastrophotograph\w*\b|\bnight sky photo\b"
+    r"|\bstunning (image|view|photo|picture)\b"
+    r"|\bbest space (photos?|images?)\b"
+    r"|\bhow to photograph\b"
+    r"|\bcamera (lens|gear|setup).{0,20}(sky|star|space|night)\b"
+    r"|\bstargazing (guide|tip|calendar)\b"
+    r"|\bwhen to see\b|\bvisible tonight\b"
+    r"|\b(sci-fi|science fiction) (movie|film|show|series|review)\b"
+    r"|\bbest .{0,20}(movies|shows|series|books).{0,20}(space|sci-fi)\b"
+    r"|\bpodcast.{0,10}(episode|ep\.|#\d)"
+    r"|\bpicture of the week\b",
+    re.IGNORECASE,
+)
+
 # Stopwords too common in space news titles to be discriminative
 _STOP = frozenset(
     {
