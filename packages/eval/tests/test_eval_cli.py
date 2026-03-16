@@ -59,8 +59,7 @@ def test_quality_no_llm_with_items(tmp_path, monkeypatch, make_item) -> None:
     assert result.exit_code == 0
     assert "source_diversity" in result.output
     assert "category_coverage" in result.output
-    assert "link_count" in result.output
-    assert "Average" in result.output
+    assert "Weighted avg" in result.output
 
 
 def test_quality_output_file(tmp_path, monkeypatch, make_item) -> None:

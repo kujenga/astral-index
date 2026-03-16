@@ -4,13 +4,30 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any
 
-from astral_core import REFUSAL_PATTERNS, ContentItem, get_llm_client, load_prompt
+from astral_core import ContentItem, get_llm_client, load_prompt
 
 from .models import ItemSummary, NewsletterSection, SectionType
 
 logger = logging.getLogger(__name__)
+
+# Local copy of refusal patterns — decoupled from the scorer's REFUSAL_PATTERNS
+# in astral_core.scoring so the two can evolve independently.
+_SUMMARIZER_REFUSAL_RE = re.compile(
+    r"(?i)("
+    r"I cannot provide a summary"
+    r"|cannot summarize"
+    r"|no body text"
+    r"|not provided"
+    r"|summary not available"
+    r"|unable to summarize"
+    r"|I don't have enough"
+    r"|no (?:article |source )?(?:text|content) "
+    r"(?:was |were )?(?:provided|included|available)"
+    r")"
+)
 
 _ITEM_SYSTEM = """\
 You are a space news editor writing concise summaries for a weekly newsletter. \
@@ -125,7 +142,7 @@ class LLMSummarizer:
                     summary = resp.content[0].text.strip()
                     # Fall back to excerpt if LLM refused or
                     # produced an empty/useless response
-                    if not summary or REFUSAL_PATTERNS.search(summary):
+                    if not summary or _SUMMARIZER_REFUSAL_RE.search(summary):
                         logger.warning(
                             "LLM returned refusal for %s, using excerpt",
                             item.title[:60],

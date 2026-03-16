@@ -9,7 +9,14 @@ import unicodedata
 # appear in a news digest, even if the classifier assigned a space category.
 NON_JOURNALISM_RE = re.compile(
     r"\bword search\b|\bpuzzle\b|\bquiz\b|\bcrossword\b"
-    r"|\bbest (?:ai |video ?)?games\b|\btop \d+ games\b",
+    r"|\bbest (?:ai |video ?)?games\b|\btop \d+ games\b"
+    # Buying guides and product roundups
+    r"|\bbest .{0,30} to buy\b|\bbuying guide\b|\bproduct review\b"
+    r"|\btelescope.{0,20}(?:guide|review|buy|deal|price)\b"
+    # Gaming content
+    r"|\bgaming .{0,20}review\b|\bplaystation\b|\bxbox\b|\bnintendo\b"
+    # Horoscopes/astrology (common "space" misclassification)
+    r"|\bhoroscope\b|\bastrology\b|\bzodiac\b",
     re.IGNORECASE,
 )
 

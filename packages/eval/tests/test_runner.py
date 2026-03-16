@@ -35,7 +35,6 @@ async def test_heuristic_score_names_match(
     expected = {
         "source_diversity",
         "category_coverage",
-        "link_count",
         "section_balance",
         "semantic_dedup",
         "off_topic_leakage",

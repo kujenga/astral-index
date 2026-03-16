@@ -201,10 +201,14 @@ async def coverage_adequacy(
     """Judge whether the week's important stories are covered."""
     markdown = output.get("markdown", "")
 
-    # Build context from top input items
+    # Build context from top input items, sorted by word count so substantive
+    # articles come first (not arbitrary scrape order)
     input_summary = ""
     if input:
-        top = input[:20]
+        sorted_input = sorted(
+            input, key=lambda item: item.get("word_count") or 0, reverse=True
+        )
+        top = sorted_input[:20]
         lines = [
             f"- {item.get('title', '?')} ({item.get('source_name', '?')})"
             for item in top
@@ -419,20 +423,30 @@ async def summary_faithfulness(
     """Judge whether summaries faithfully represent their source articles."""
     markdown = output.get("markdown", "")
 
-    # Build source context from input items for cross-referencing
+    # Build paired summary↔source context so the judge can cross-reference
+    # each summary against its actual source article (not arbitrary items).
     source_context = ""
     if input:
-        excerpts = []
-        for item in input[:10]:
-            title = item.get("title", "?")
-            body = item.get("body_text") or item.get("excerpt") or ""
-            body = body[:500]
-            excerpts.append(f"- **{title}**: {body}")
-        source_context = "\n".join(excerpts)
+        source_map = {item.get("id"): item for item in input if item.get("id")}
+        pairs: list[str] = []
+        for section in output.get("sections", []):
+            for item in section.get("items", []):
+                item_id = item.get("item_id")
+                source = source_map.get(item_id) if item_id else None
+                if source:
+                    body = source.get("body_text") or source.get("excerpt") or ""
+                    pairs.append(
+                        f"Summary: {item.get('summary', '')}\nSource: {body[:500]}"
+                    )
+                if len(pairs) >= 10:
+                    break
+            if len(pairs) >= 10:
+                break
+        source_context = "\n\n".join(pairs)
 
     user = f"Newsletter:\n\n{markdown}"
     if source_context:
-        user += f"\n\n---\nSource articles:\n{source_context}"
+        user += f"\n\n---\nSummary-source pairs:\n{source_context}"
 
     return await _ensemble_judge(
         "summary_faithfulness",

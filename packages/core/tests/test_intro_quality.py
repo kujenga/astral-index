@@ -133,7 +133,7 @@ class TestIntroQualitySubstantive:
         )
         assert result.score >= 0.8
         assert result.metadata["not_template"] == 1.0
-        assert result.metadata["specificity_overlap"] >= 4
+        assert result.metadata["entity_count"] >= 4
         assert result.metadata["substance_overlap"] >= 2
         assert result.metadata["engagement_signals"] >= 2
 

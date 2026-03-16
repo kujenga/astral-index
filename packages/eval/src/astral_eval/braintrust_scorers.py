@@ -23,7 +23,6 @@ def _make_all() -> dict[str, Callable]:
         category_coverage,
         content_originality,
         intro_quality,
-        link_count,
         off_topic_leakage,
         section_balance,
         semantic_dedup,
@@ -50,7 +49,6 @@ def _make_all() -> dict[str, Callable]:
     scorers = [
         source_diversity,
         category_coverage,
-        link_count,
         section_balance,
         semantic_dedup,
         off_topic_leakage,
@@ -78,7 +76,6 @@ _ALL = _make_all()
 
 bt_source_diversity = _ALL["bt_source_diversity"]
 bt_category_coverage = _ALL["bt_category_coverage"]
-bt_link_count = _ALL["bt_link_count"]
 bt_section_balance = _ALL["bt_section_balance"]
 bt_semantic_dedup = _ALL["bt_semantic_dedup"]
 bt_off_topic_leakage = _ALL["bt_off_topic_leakage"]
@@ -101,7 +98,6 @@ bt_structural_similarity = _ALL["bt_structural_similarity"]
 HEURISTIC_BT_SCORERS = [
     bt_source_diversity,
     bt_category_coverage,
-    bt_link_count,
     bt_section_balance,
     bt_semantic_dedup,
     bt_off_topic_leakage,

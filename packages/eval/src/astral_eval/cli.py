@@ -15,6 +15,7 @@ from astral_author.pipeline import STRATEGIES, build_strategy
 from astral_core import ContentStore, bootstrap
 
 from .runner import run_quality_eval
+from .scoring_summary import summarize_scores
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +146,16 @@ async def _quality(
 
     # Summary
     if scores:
-        avg = sum(s.score for s in scores.values()) / len(scores)
-        click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+        summary = summarize_scores(scores)
+        click.echo(f"\n{'Structural avg':<25} {summary.structural_avg:>6.3f}")
+        if summary.quality_avg is not None:
+            click.echo(f"{'Quality avg':<25} {summary.quality_avg:>6.3f}")
+        click.echo(f"{'Weighted avg':<25} {summary.weighted_avg:>6.3f}")
+        click.echo(
+            f"{'Floor score':<25} {summary.floor_score:>6.3f}  ({summary.floor_scorer})"
+        )
+        for warning in summary.warnings:
+            click.secho(f"  WARNING: {warning}", fg="yellow", err=True)
 
     # Write full results if requested
     if output_path:
@@ -296,8 +305,17 @@ async def _experiment(
             for name, score in sorted(scores.items()):
                 details = _format_metadata(score.metadata)
                 click.echo(f"{name:<25} {score.score:>6.3f}  {details}")
-            avg = sum(s.score for s in scores.values()) / len(scores)
-            click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+            summary = summarize_scores(scores)
+            click.echo(f"\n{'Structural avg':<25} {summary.structural_avg:>6.3f}")
+            if summary.quality_avg is not None:
+                click.echo(f"{'Quality avg':<25} {summary.quality_avg:>6.3f}")
+            click.echo(f"{'Weighted avg':<25} {summary.weighted_avg:>6.3f}")
+            click.echo(
+                f"{'Floor score':<25} {summary.floor_score:>6.3f}"
+                f"  ({summary.floor_scorer})"
+            )
+            for warning in summary.warnings:
+                click.secho(f"  WARNING: {warning}", fg="yellow", err=True)
 
 
 # ---------------------------------------------------------------------------
@@ -417,8 +435,15 @@ async def _compare(
             if scores:
                 for name, score in sorted(scores.items()):
                     click.echo(f"  {name:<23} {score.score:.3f}")
-                avg = sum(s.score for s in scores.values()) / len(scores)
-                click.echo(f"  {'Average':<23} {avg:.3f}")
+                summary = summarize_scores(scores)
+                click.echo(f"  {'Structural avg':<23} {summary.structural_avg:.3f}")
+                if summary.quality_avg is not None:
+                    click.echo(f"  {'Quality avg':<23} {summary.quality_avg:.3f}")
+                click.echo(f"  {'Weighted avg':<23} {summary.weighted_avg:.3f}")
+                click.echo(
+                    f"  {'Floor':<23} {summary.floor_score:.3f}"
+                    f"  ({summary.floor_scorer})"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -626,8 +651,19 @@ def score(draft_file: str, since: datetime) -> None:
             bt_scores[result.name] = result.score
 
     if bt_scores:
-        avg = sum(bt_scores.values()) / len(bt_scores)
-        click.echo(f"\n{'Average':<25} {avg:>6.3f}")
+        from .scores import Score as _Score
+
+        _scores = {n: _Score(name=n, score=v) for n, v in bt_scores.items()}
+        summary = summarize_scores(_scores)
+        click.echo(f"\n{'Structural avg':<25} {summary.structural_avg:>6.3f}")
+        if summary.quality_avg is not None:
+            click.echo(f"{'Quality avg':<25} {summary.quality_avg:>6.3f}")
+        click.echo(f"{'Weighted avg':<25} {summary.weighted_avg:>6.3f}")
+        click.echo(
+            f"{'Floor score':<25} {summary.floor_score:>6.3f}  ({summary.floor_scorer})"
+        )
+        for warning in summary.warnings:
+            click.secho(f"  WARNING: {warning}", fg="yellow", err=True)
 
     # Log to observability backend if available
     try:

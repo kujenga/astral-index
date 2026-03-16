@@ -13,7 +13,6 @@ from .scorers.heuristic import (
     category_coverage,
     content_originality,
     intro_quality,
-    link_count,
     off_topic_leakage,
     section_balance,
     semantic_dedup,
@@ -41,7 +40,6 @@ from .scores import Score
 HEURISTIC_SCORERS = [
     source_diversity,
     category_coverage,
-    link_count,
     section_balance,
     semantic_dedup,
     off_topic_leakage,
