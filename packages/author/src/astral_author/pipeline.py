@@ -93,10 +93,9 @@ def _log_online_scores(newsletter: NewsletterDraft, items: list[ContentItem]) ->
         return
 
     try:
-        import braintrust
+        from astral_core.observability import get_tracing
 
-        span = braintrust.current_span()
-        span.log(scores=scores)
+        get_tracing().log_scores(scores)
     except Exception:
         pass
 

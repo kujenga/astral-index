@@ -1,7 +1,7 @@
 """LLM-based newsletter quality scorers using A-D rubrics.
 
-Primary path: Braintrust AI Proxy (GPT-4o-mini via OpenAI SDK) for cross-model
-judging — avoids self-preference bias since Claude generates the drafts.
+Primary path: AI proxy via the active observability backend (cross-model
+judging to avoid self-preference bias since Claude generates the drafts).
 Fallback: Anthropic SDK (Claude Haiku) via ``astral_core.get_llm_client()``.
 All judges return ``None`` when no API key is available, letting the runner
 skip them gracefully.
@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 from typing import Any
 
 from astral_core import get_llm_client
+from astral_core.observability import get_llm_proxy
 from astral_eval.scores import CHOICE_SCORES, Score
 
 logger = logging.getLogger(__name__)
@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 # Fallback model when using direct Anthropic SDK
 _DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 
-# Cross-model judge via Braintrust AI Proxy — different model family than
-# the Sonnet drafter to avoid self-preference bias
+# Cross-model judge — different model family than the Sonnet drafter
+# to avoid self-preference bias
 _PROXY_MODEL = "gpt-4.1-mini"
 
 
@@ -33,35 +33,13 @@ async def _judge_with_proxy(
     system: str,
     user_content: str,
 ) -> Score | None:
-    """Judge via Braintrust AI Proxy using OpenAI SDK."""
-    try:
-        from openai import AsyncOpenAI
-    except ImportError:
-        return None
-
-    api_key = os.environ.get("BRAINTRUST_API_KEY")
-    if not api_key:
-        return None
-
-    client = AsyncOpenAI(
-        base_url="https://api.braintrust.dev/v1/proxy",
-        api_key=api_key,
+    """Judge via the active observability backend's LLM proxy."""
+    proxy = get_llm_proxy()
+    text = await proxy.judge(
+        name=name, system=system, user_content=user_content, model=_PROXY_MODEL
     )
-
-    try:
-        response = await client.chat.completions.create(
-            model=_PROXY_MODEL,
-            max_tokens=128,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user_content},
-            ],
-        )
-    except Exception:
-        logger.warning("Braintrust proxy judge failed for %s", name, exc_info=True)
+    if text is None:
         return None
-
-    text = response.choices[0].message.content or "" if response.choices else ""
     return _extract_score(name, text)
 
 
@@ -114,11 +92,10 @@ async def _judge(
     system: str,
     user_content: str,
 ) -> Score | None:
-    """Route to Braintrust AI Proxy if available, else fall back to Anthropic."""
-    if os.environ.get("BRAINTRUST_API_KEY"):
-        result = await _judge_with_proxy(name, system, user_content)
-        if result is not None:
-            return result
+    """Route to LLM proxy if available, else fall back to Anthropic."""
+    result = await _judge_with_proxy(name, system, user_content)
+    if result is not None:
+        return result
 
     return await _judge_with_anthropic(name, system, user_content)
 

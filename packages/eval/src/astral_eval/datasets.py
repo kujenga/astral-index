@@ -1,7 +1,8 @@
-"""Golden dataset management for reproducible Braintrust experiments.
+"""Golden dataset management for reproducible experiments.
 
-Upload frozen sets of ContentItems to Braintrust as named datasets, enabling
-consistent regression testing across pipeline changes.
+Upload frozen sets of ContentItems to the active observability backend
+as named datasets, enabling consistent regression testing across pipeline
+changes.
 
 Standard dataset tiers:
   - golden-smoke    (1 row)  — fast sanity check (~5s)
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from astral_core import ContentItem, ContentStore
+from astral_core.observability import get_backend_name, get_datasets
 
 logger = logging.getLogger(__name__)
 
@@ -87,10 +89,20 @@ def _list_items_by_date_dir(
     return results
 
 
+def _check_backend() -> None:
+    """Raise SystemExit if no observability backend is configured."""
+    if get_backend_name() == "noop":
+        logger.warning(
+            "No observability backend configured — cannot upload datasets. "
+            "Set BRAINTRUST_API_KEY or PHOENIX_COLLECTOR_ENDPOINT to enable."
+        )
+        raise SystemExit(1)
+
+
 def setup_standard_datasets(
     *, dry_run: bool = False, base_dir: str = "data"
 ) -> list[str]:
-    """Create all standard dataset tiers in Braintrust.
+    """Create all standard dataset tiers in the active backend.
 
     Uses directory-date filtering (published_at) rather than scraped_at,
     so historical data scraped retroactively is included correctly.
@@ -98,21 +110,9 @@ def setup_standard_datasets(
     Returns the list of dataset names that were uploaded.
     """
     if not dry_run:
-        try:
-            import braintrust
-        except ImportError:
-            logger.warning(
-                "braintrust package not installed — cannot upload datasets. "
-                "Install with: uv sync --all-packages --extra braintrust"
-            )
-            raise SystemExit(1) from None
+        _check_backend()
 
-        import os
-
-        if not os.environ.get("BRAINTRUST_API_KEY"):
-            logger.warning("BRAINTRUST_API_KEY not set — cannot upload datasets.")
-            raise SystemExit(1)
-
+    datasets = get_datasets()
     uploaded: list[str] = []
     for name, window_keys in STANDARD_DATASETS.items():
         weeks = [_window_to_datetimes(k) for k in window_keys]
@@ -126,7 +126,7 @@ def setup_standard_datasets(
             uploaded.append(name)
             continue
 
-        dataset = braintrust.init_dataset(project="astral-index", name=name)
+        dataset = datasets.init_dataset(project="astral-index", name=name)
         total_items = 0
         rows = 0
 
@@ -168,21 +168,20 @@ def setup_standard_datasets(
                     oi_issues = [e["url"] for e in matching]
 
             input_data = [item.model_dump(mode="json") for item in items]
-            row_kwargs: dict[str, Any] = {
-                "input": input_data,
-                "metadata": {
-                    "week_start": week_start.strftime("%Y-%m-%d"),
-                    "week_end": week_end.strftime("%Y-%m-%d"),
-                    "item_count": len(items),
-                    "categories": dict(cat_counts),
-                    "has_oi_reference": oi_text is not None,
-                    "oi_issues": oi_issues,
-                },
+            metadata = {
+                "week_start": week_start.strftime("%Y-%m-%d"),
+                "week_end": week_end.strftime("%Y-%m-%d"),
+                "item_count": len(items),
+                "categories": dict(cat_counts),
+                "has_oi_reference": oi_text is not None,
+                "oi_issues": oi_issues,
             }
             if oi_text is not None:
-                row_kwargs["expected"] = oi_text
+                metadata["expected"] = oi_text
 
-            dataset.insert(**row_kwargs)
+            datasets.insert_row(
+                dataset, input=input_data, metadata=metadata
+            )
             total_items += len(items)
             rows += 1
 
@@ -190,7 +189,7 @@ def setup_standard_datasets(
             logger.warning("No items found for dataset %s — skipping", name)
             continue
 
-        dataset.flush()
+        datasets.flush_dataset(dataset)
         logger.info("Uploaded %s: %d rows, %d total items", name, rows, total_items)
         uploaded.append(name)
 
@@ -204,30 +203,14 @@ def upload_golden_week(
     dataset_name: str,
     base_dir: str = "data",
 ) -> dict[str, Any]:
-    """Read items from ContentStore and upload to Braintrust as a dataset.
+    """Read items from ContentStore and upload to the active backend as a dataset.
 
     Each row is one week's worth of items (input = full item list). This
     matches the 1-row-per-eval design in the experiment runner.
 
     Returns metadata about the uploaded dataset.
     """
-    try:
-        import braintrust
-    except ImportError:
-        logger.warning(
-            "braintrust package not installed — cannot upload dataset. "
-            "Install with: uv sync --all-packages --extra braintrust"
-        )
-        raise SystemExit(1) from None
-
-    import os
-
-    if not os.environ.get("BRAINTRUST_API_KEY"):
-        logger.warning(
-            "BRAINTRUST_API_KEY not set — cannot upload dataset. "
-            "Set this environment variable to enable Braintrust dataset uploads."
-        )
-        raise SystemExit(1)
+    _check_backend()
 
     store = ContentStore(base_dir=base_dir)
     items = store.list_items(since=since, before=until)
@@ -236,7 +219,6 @@ def upload_golden_week(
         logger.warning("No items found in date range")
         raise SystemExit(1)
 
-    # Build category breakdown for metadata
     cat_counts: Counter[str] = Counter()
     for item in items:
         for cat in item.categories:
@@ -245,8 +227,10 @@ def upload_golden_week(
     date_range = _date_range(items)
     input_data = [item.model_dump(mode="json") for item in items]
 
-    dataset = braintrust.init_dataset(project="astral-index", name=dataset_name)
-    dataset.insert(
+    datasets = get_datasets()
+    dataset = datasets.init_dataset(project="astral-index", name=dataset_name)
+    datasets.insert_row(
+        dataset,
         input=input_data,
         metadata={
             "item_count": len(items),
@@ -254,7 +238,7 @@ def upload_golden_week(
             "categories": dict(cat_counts),
         },
     )
-    dataset.flush()
+    datasets.flush_dataset(dataset)
 
     return {
         "dataset_name": dataset_name,
@@ -283,33 +267,16 @@ def upload_golden_set(
     dataset_name: str,
     base_dir: str = "data",
 ) -> dict[str, Any]:
-    """Upload multiple week-windows as separate rows in one Braintrust dataset.
+    """Upload multiple week-windows as separate rows in one dataset.
 
     Each (since, until) pair becomes one dataset row whose ``input`` is
-    the list of ContentItem dicts for that window. When ``EvalAsync`` runs
-    against this dataset it evaluates each row independently; Braintrust
-    averages scores across rows.
+    the list of ContentItem dicts for that window.
     """
-    try:
-        import braintrust
-    except ImportError:
-        logger.warning(
-            "braintrust package not installed — cannot upload dataset. "
-            "Install with: uv sync --all-packages --extra braintrust"
-        )
-        raise SystemExit(1) from None
-
-    import os
-
-    if not os.environ.get("BRAINTRUST_API_KEY"):
-        logger.warning(
-            "BRAINTRUST_API_KEY not set — cannot upload dataset. "
-            "Set this environment variable to enable Braintrust dataset uploads."
-        )
-        raise SystemExit(1)
+    _check_backend()
 
     store = ContentStore(base_dir=base_dir)
-    dataset = braintrust.init_dataset(project="astral-index", name=dataset_name)
+    datasets = get_datasets()
+    dataset = datasets.init_dataset(project="astral-index", name=dataset_name)
     total_items = 0
     row_summaries: list[dict[str, Any]] = []
 
@@ -324,7 +291,8 @@ def upload_golden_set(
                 cat_counts[cat] += 1
 
         input_data = [item.model_dump(mode="json") for item in items]
-        dataset.insert(
+        datasets.insert_row(
+            dataset,
             input=input_data,
             metadata={
                 "week_start": week_start.strftime("%Y-%m-%d"),
@@ -346,7 +314,7 @@ def upload_golden_set(
         logger.warning("No items found in any week range")
         raise SystemExit(1)
 
-    dataset.flush()
+    datasets.flush_dataset(dataset)
 
     return {
         "dataset_name": dataset_name,

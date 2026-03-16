@@ -5,14 +5,15 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import astral_core.llm as llm_mod
+import astral_core.observability._resolve as resolve_mod
 from astral_core import get_llm_client
 
 
 class TestGetLlmClient:
     def setup_method(self):
         """Reset module-level state between tests."""
-        llm_mod._braintrust_initialized = False
-        llm_mod._braintrust_warned = False
+        llm_mod._warned = False
+        resolve_mod.reset()
 
     def test_no_api_key_returns_none(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -20,6 +21,11 @@ class TestGetLlmClient:
 
     def test_with_api_key_returns_client(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        monkeypatch.delenv("BRAINTRUST_API_KEY", raising=False)
+        monkeypatch.delenv("BRAINTRUST_TRACE", raising=False)
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
         mock_client = MagicMock()
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
             result = get_llm_client()
@@ -29,6 +35,9 @@ class TestGetLlmClient:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setenv("BRAINTRUST_API_KEY", "bt-key")
         monkeypatch.setenv("BRAINTRUST_TRACE", "1")
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
 
         mock_client = MagicMock()
         wrapped = MagicMock()
@@ -57,6 +66,9 @@ class TestGetLlmClient:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setenv("BRAINTRUST_API_KEY", "bt-key")
         monkeypatch.delenv("BRAINTRUST_TRACE", raising=False)
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
 
         mock_client = MagicMock()
         mock_init = MagicMock()
@@ -83,6 +95,9 @@ class TestGetLlmClient:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setenv("BRAINTRUST_API_KEY", "bt-key")
         monkeypatch.setenv("BRAINTRUST_TRACE", "1")
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
 
         mock_client = MagicMock()
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
@@ -95,6 +110,9 @@ class TestGetLlmClient:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setenv("BRAINTRUST_API_KEY", "bt-key")
         monkeypatch.setenv("BRAINTRUST_TRACE", "1")
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
 
         mock_init = MagicMock()
         mock_wrap = MagicMock(side_effect=lambda c: c)
@@ -126,9 +144,12 @@ class TestGetLlmClient:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
         monkeypatch.setenv("BRAINTRUST_API_KEY", "bt-key")
         monkeypatch.delenv("BRAINTRUST_TRACE", raising=False)
+        monkeypatch.delenv("PHOENIX_COLLECTOR_ENDPOINT", raising=False)
+        monkeypatch.delenv("PHOENIX_API_URL", raising=False)
+        monkeypatch.delenv("ASTRAL_OBSERVABILITY_BACKEND", raising=False)
 
         mock_client = MagicMock()
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
             get_llm_client()
 
-        assert "BRAINTRUST_API_KEY not set" not in caplog.text
+        assert "not set" not in caplog.text
