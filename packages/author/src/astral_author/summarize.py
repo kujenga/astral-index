@@ -53,16 +53,11 @@ def _truncate(text: str, max_chars: int = 3000) -> str:
 
 def _excerpt_summary(item: ContentItem) -> str:
     """Best-effort summary from existing content, no LLM needed."""
-    if item.excerpt and len(item.excerpt) >= 20:
+    if item.excerpt:
         return item.excerpt
-    if item.body_text and len(item.body_text) >= 20:
+    if item.body_text:
         return _truncate(item.body_text, 300)
-    # Short or missing excerpt — prefer longer text
-    best = item.title
-    for text in (item.excerpt or "", item.body_text or ""):
-        if len(text) > len(best):
-            best = text
-    return _truncate(best, 300)
+    return item.title
 
 
 class ExcerptSummarizer:
