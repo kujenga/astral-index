@@ -159,9 +159,21 @@ class EngagementRanker:
         scored = [(item, self._score_item(item, now)) for item in on_topic]
         scored.sort(key=lambda x: x[1], reverse=True)
 
+        # Source diminishing returns: discount repeated sources to encourage
+        # diversity. The 1st item from a source keeps its full score; the 2nd
+        # gets 0.85x, the 3rd 0.72x, etc. Re-sort so lower-ranked items from
+        # rare sources can beat the 4th item from a dominant source.
+        source_counts: dict[str, int] = {}
+        adjusted: list[tuple[ContentItem, float]] = []
+        for item, s in scored:
+            count = source_counts.get(item.source_name, 0)
+            adjusted.append((item, s * (0.85**count)))
+            source_counts[item.source_name] = count + 1
+        adjusted.sort(key=lambda x: x[1], reverse=True)
+
         # Semantic dedup: skip items too similar to an already-accepted item
         accepted: list[tuple[ContentItem, float]] = []
-        for item, s in scored:
+        for item, s in adjusted:
             if any(
                 title_similarity(item.title, a.title) >= _DEDUP_SIMILARITY_THRESHOLD
                 for a, _ in accepted
