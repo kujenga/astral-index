@@ -28,6 +28,17 @@ _SOURCE_TIERS: dict[str, float] = {
     "The Space Review": 0.75,
     "SNAPI Articles": 0.7,
     "SNAPI Blogs": 0.65,
+    "NASA JPL News": 0.85,
+    "Breaking Defense": 0.85,
+    "Via Satellite": 0.80,
+    "NASA Space Station Blog": 0.80,
+    "NASA Artemis Blog": 0.80,
+    "NASA Earth Observatory": 0.80,
+    "ISS National Lab": 0.75,
+    "Canadian Space Agency": 0.75,
+    "UK Space Agency Blog": 0.70,
+    "TechCrunch Space": 0.75,
+    "Astrobites": 0.70,
 }
 _DEFAULT_TIER = 0.5
 
