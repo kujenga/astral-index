@@ -148,3 +148,103 @@ async def test_llm_batch_preserves_order():
     assert results[0] == SpaceCategory.LAUNCH_VEHICLES
     assert results[1] == SpaceCategory.SPACE_SCIENCE
     assert results[2] == SpaceCategory.LUNAR
+
+
+# ---------------------------------------------------------------------------
+# LLM classifier — entertainment content → off_topic
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "excerpt"),
+    [
+        (
+            "Astrophotographer spends nearly 70 hours "
+            "capturing a delicate blue nebula in Orion (photo)",
+            "This stunning deep-sky image required 70 hours "
+            "of exposure time across multiple nights.",
+        ),
+        (
+            "Best time to see Mars in the night sky this March",
+            "Mars reaches peak visibility this month. Here's when and where to look.",
+        ),
+        (
+            "Looking back at 'Red Dwarf', the sci-fi show "
+            "that had a huge impact on my childhood",
+            "The classic British sci-fi comedy remains one "
+            "of the most beloved space shows ever made.",
+        ),
+        (
+            "The 10 best space photos of the week",
+            "From stunning auroras to galaxy close-ups, "
+            "here are this week's best space photos.",
+        ),
+        (
+            "Stargazing guide: Jupiter and Saturn conjunction tonight",
+            "Head outside after sunset for a rare chance to "
+            "see Jupiter and Saturn appear close together.",
+        ),
+    ],
+    ids=[
+        "astrophotography",
+        "stargazing_guide",
+        "scifi_review",
+        "photo_gallery",
+        "observing_calendar",
+    ],
+)
+async def test_llm_entertainment_classified_as_off_topic(
+    title: str,
+    excerpt: str,
+):
+    """Entertainment content should be classified as off_topic."""
+    mock_content = MagicMock()
+    mock_content.text = "off_topic"
+    mock_response = MagicMock()
+    mock_response.content = [mock_content]
+
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+    with patch("astral_ingest.classify.llm.get_llm_client", return_value=mock_client):
+        result = await classify_with_llm(title, excerpt)
+
+    assert result == SpaceCategory.OFF_TOPIC
+
+    # Verify the title and excerpt were sent to the LLM
+    call_args = mock_client.messages.create.call_args
+    user_msg = call_args.kwargs["messages"][-1]["content"]
+    assert title in user_msg
+
+
+async def test_llm_few_shot_includes_entertainment_examples():
+    """Verify the few-shot list contains entertainment off_topic examples."""
+    from astral_ingest.classify.llm import _FEW_SHOT
+
+    off_topic_user_msgs = [
+        _FEW_SHOT[i]["content"]
+        for i in range(len(_FEW_SHOT))
+        if (
+            _FEW_SHOT[i].get("role") == "user"
+            and i + 1 < len(_FEW_SHOT)
+            and _FEW_SHOT[i + 1].get("content") == "off_topic"
+        )
+    ]
+
+    # Should have at least 4 off_topic examples (3 entertainment + 1 xkcd)
+    assert len(off_topic_user_msgs) >= 4
+
+    # Check specific entertainment patterns are represented
+    all_text = " ".join(off_topic_user_msgs).lower()
+    assert "astrophotographer" in all_text
+    assert "night sky" in all_text
+    assert "red dwarf" in all_text
+
+
+async def test_llm_system_prompt_mentions_entertainment():
+    """System prompt should explicitly mention entertainment filtering."""
+    from astral_ingest.classify.llm import _SYSTEM_PROMPT
+
+    assert "entertainment" in _SYSTEM_PROMPT.lower()
+    assert "astrophotography" in _SYSTEM_PROMPT.lower()
+    assert "space technology" in _SYSTEM_PROMPT.lower()
