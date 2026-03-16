@@ -28,6 +28,7 @@ from .scorers.llm_judges import (
     readability_fit,
     summary_faithfulness,
     summary_informativeness,
+    technical_focus,
     tone_consistency,
 )
 from .scorers.reference_judges import (
@@ -53,6 +54,7 @@ LLM_SCORERS = [
     readability_fit,
     link_quality,
     coherence_flow,
+    technical_focus,
 ]
 THINKING_LLM_SCORERS = [
     summary_faithfulness,

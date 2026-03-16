@@ -17,6 +17,7 @@ from astral_eval.scorers.llm_judges import (
     _READABILITY_FIT_SYSTEM,
     _SUMMARY_FAITHFULNESS_SYSTEM,
     _SUMMARY_INFORMATIVENESS_SYSTEM,
+    _TECHNICAL_FOCUS_SYSTEM,
     _TONE_CONSISTENCY_SYSTEM,
     _ensemble_judge,
     _judge_thinking,
@@ -28,6 +29,7 @@ from astral_eval.scorers.llm_judges import (
     readability_fit,
     summary_faithfulness,
     summary_informativeness,
+    technical_focus,
     tone_consistency,
 )
 from astral_eval.scores import Score
@@ -76,6 +78,21 @@ class TestGracefulDegradation:
         result = await tone_consistency(output={"markdown": "test"})
         assert result is None
 
+    async def test_technical_focus_returns_none(self):
+        result = await technical_focus(output={"markdown": "test"})
+        assert result is None
+
+    async def test_technical_focus_with_sections_returns_none(self):
+        result = await technical_focus(
+            output={
+                "markdown": "test",
+                "sections": [
+                    {"items": [{"title": "SpaceX launch"}, {"title": "Mars rover"}]}
+                ],
+            }
+        )
+        assert result is None
+
 
 # -- Prompt templates --
 
@@ -117,6 +134,11 @@ class TestPromptTemplates:
         # Verify updated rubric evaluates substance / tl;dr value
         assert "substance" in _INTRODUCTION_QUALITY_SYSTEM.lower()
         assert "tl;dr" in _INTRODUCTION_QUALITY_SYSTEM.lower()
+
+    def test_technical_focus_prompt(self):
+        assert len(_TECHNICAL_FOCUS_SYSTEM) > 50
+        assert "technical" in _TECHNICAL_FOCUS_SYSTEM.lower()
+        assert "entertainment" in _TECHNICAL_FOCUS_SYSTEM.lower()
 
     def test_tone_consistency_prompt(self):
         assert len(_TONE_CONSISTENCY_SYSTEM) > 50
