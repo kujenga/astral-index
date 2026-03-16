@@ -179,9 +179,7 @@ def setup_standard_datasets(
             if oi_text is not None:
                 metadata["expected"] = oi_text
 
-            datasets.insert_row(
-                dataset, input=input_data, metadata=metadata
-            )
+            datasets.insert_row(dataset, input=input_data, metadata=metadata)
             total_items += len(items)
             rows += 1
 
