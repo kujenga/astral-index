@@ -38,6 +38,7 @@ def _make_all() -> dict[str, Callable]:
         readability_fit,
         summary_faithfulness,
         summary_informativeness,
+        technical_focus,
         tone_consistency,
     )
     from .scorers.reference_judges import (
@@ -64,6 +65,7 @@ def _make_all() -> dict[str, Callable]:
         summary_informativeness,
         introduction_quality,
         tone_consistency,
+        technical_focus,
         topic_overlap,
         editorial_depth_comparison,
         structural_similarity,
@@ -90,6 +92,7 @@ bt_coherence_flow = _ALL["bt_coherence_flow"]
 bt_summary_faithfulness = _ALL["bt_summary_faithfulness"]
 bt_summary_informativeness = _ALL["bt_summary_informativeness"]
 bt_introduction_quality = _ALL["bt_introduction_quality"]
+bt_technical_focus = _ALL["bt_technical_focus"]
 bt_tone_consistency = _ALL["bt_tone_consistency"]
 bt_topic_overlap = _ALL["bt_topic_overlap"]
 bt_editorial_depth_comparison = _ALL["bt_editorial_depth_comparison"]
@@ -115,6 +118,7 @@ LLM_BT_SCORERS = [
     bt_summary_informativeness,
     bt_introduction_quality,
     bt_tone_consistency,
+    bt_technical_focus,
 ]
 REFERENCE_BT_SCORERS = [
     bt_topic_overlap,

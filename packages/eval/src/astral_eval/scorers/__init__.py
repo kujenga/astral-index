@@ -10,6 +10,7 @@ from .llm_judges import (
     readability_fit,
     summary_faithfulness,
     summary_informativeness,
+    technical_focus,
     tone_consistency,
 )
 from .reference_judges import (
@@ -32,6 +33,7 @@ __all__ = [
     "structural_similarity",
     "summary_faithfulness",
     "summary_informativeness",
+    "technical_focus",
     "tone_consistency",
     "topic_overlap",
 ]

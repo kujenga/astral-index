@@ -172,6 +172,26 @@ Respond with exactly one letter (A, B, C, or D) \
 followed by a one-sentence justification."""
 
 
+_TECHNICAL_FOCUS_SYSTEM = """\
+You are evaluating whether a space technology newsletter stays focused on \
+technical content — mission updates, launch reports, policy decisions, \
+scientific findings, engineering developments — versus including entertainment \
+filler like astrophotography features, observing guides, sci-fi reviews, \
+stargazing calendars, or photo galleries.
+
+Rate on this rubric:
+A - Every item covers a technical development, policy decision, mission update, \
+or research finding. No entertainment filler.
+B - Almost all items are technical; one borderline item (e.g., an image feature \
+with substantial science explanation attached).
+C - Several items are entertainment (astrophotography, observing guides, \
+reviews) or add no technical information.
+D - Newsletter includes multiple entertainment/filler items that dilute the \
+technical focus.
+
+Respond with exactly one letter (A, B, C, or D) \
+followed by a one-sentence justification."""
+
 # ---------------------------------------------------------------------------
 # Public scorer functions
 # ---------------------------------------------------------------------------
@@ -268,6 +288,36 @@ async def coherence_flow(
         "coherence_flow",
         _COHERENCE_FLOW_SYSTEM,
         f"Newsletter:\n\n{markdown}",
+    )
+
+
+async def technical_focus(
+    *,
+    output: dict[str, Any],
+    input: list[dict[str, Any]] | None = None,
+    **kwargs: Any,
+) -> Score | None:
+    """Judge whether the newsletter stays focused on technical content."""
+    markdown = output.get("markdown", "")
+
+    # Include item titles for clearer evaluation
+    item_titles: list[str] = []
+    for section in output.get("sections", []):
+        for item in section.get("items", []):
+            title = item.get("title", "")
+            if title:
+                item_titles.append(f"- {title}")
+
+    title_list = "\n".join(item_titles) if item_titles else ""
+
+    user = f"Newsletter:\n\n{markdown}"
+    if title_list:
+        user += f"\n\n---\nItem titles for reference:\n{title_list}"
+
+    return await _judge(
+        "technical_focus",
+        _TECHNICAL_FOCUS_SYSTEM,
+        user,
     )
 
 
