@@ -12,7 +12,13 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 
-from astral_core import NON_JOURNALISM_RE, ContentItem, SpaceCategory, title_similarity
+from astral_core import (
+    NON_JOURNALISM_RE,
+    ContentItem,
+    ContentType,
+    SpaceCategory,
+    title_similarity,
+)
 
 # Source quality tiers (0-1). Unlisted sources get DEFAULT_TIER.
 _SOURCE_TIERS: dict[str, float] = {
@@ -132,13 +138,18 @@ class EngagementRanker:
 
     def _score_item(self, item: ContentItem, now: datetime) -> float:
         """Compute a 0-1 relevance score using instance weights."""
-        return (
+        base = (
             self.w_recency
             * _recency_score(item.published_at, now, self.half_life_hours)
             + self.w_engagement * _engagement_score(item)
             + self.w_source * _source_tier(item.source_name)
             + self.w_quality * _quality_score(item)
         )
+        # Discount social-media items — tweets and Reddit posts are
+        # lower-value than original reporting articles
+        if item.content_type in (ContentType.TWEET, ContentType.REDDIT_POST):
+            base *= 0.7
+        return base
 
     async def rank(
         self,
