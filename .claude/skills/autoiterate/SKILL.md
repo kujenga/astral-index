@@ -57,7 +57,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 
 ### Other options
 - `--dataset NAME` — Braintrust dataset (default: `golden-standard`). Use `golden-oi` to enable reference comparison judges against The Orbital Index (requires `fetch-oi-reference` cache).
-- `--llm` — enable LLM judges (off by default — heuristic-only is faster, cheaper, and deterministic, giving you more iterations per session; use `--llm` for final validation or when optimizing LLM-judge-only dimensions like editorial_quality)
+- `--no-llm` — disable LLM judges (heuristic-only; faster and cheaper but misses editorial quality, tone, faithfulness, and reference comparison dimensions — use only for rapid prototyping, not for measuring real quality)
 - `--strategy NAME` — strategy to optimize (default: `baseline`)
 - `--generations N` — number of generations in parallel mode (default: 3, ignored in serial mode)
 - Free-text improvement goal — interpreted as context for ideation
@@ -69,9 +69,9 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
 /autoiterate source_diversity                             # target one scorer
 /autoiterate --until "average score above 0.7"            # stop when target met
 /autoiterate --until "all scorers above 0.5"              # holistic improvement
-/autoiterate --scope prompts editorial_quality --llm       # tune prompts with LLM judges
+/autoiterate --scope prompts editorial_quality              # tune prompts for editorial quality
 /autoiterate --scope author                                # restrict to pipeline code only
-/autoiterate --dataset golden-oi --llm                    # iterate with OI reference judges
+/autoiterate --dataset golden-oi                           # iterate with OI reference judges
 /loop 10 /autoiterate --mode sweep                        # 10 iterations across all scorers
 /autoiterate --parallel 3 source_diversity                 # 3 teammates per generation
 /autoiterate --parallel 3 --generations 5 --mode sweep     # 5 generations, 3 teammates each
@@ -104,10 +104,10 @@ Also read the scorer implementations to understand what "good" means:
 
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY} --no-llm
+  --dataset {DATASET} --strategy {STRATEGY}
 ```
 
-If `--llm` was passed in `$ARGUMENTS`, remove `--no-llm` from the command to enable LLM judges.
+If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to skip LLM judges.
 
 Parse ALL scores. Record as iteration #0. In sweep mode, rank scorers low-to-high — the lowest becomes the first target.
 
@@ -265,10 +265,10 @@ Approach: {what you changed and why}"
 Run the experiment:
 ```bash
 uv run --package astral-eval astral-eval experiment \
-  --dataset {DATASET} --strategy {STRATEGY} --no-llm
+  --dataset {DATASET} --strategy {STRATEGY}
 ```
 
-If `--llm` was passed in `$ARGUMENTS`, remove `--no-llm` to enable LLM judges.
+If `--no-llm` was passed in `$ARGUMENTS`, add `--no-llm` to skip LLM judges.
 
 Parse the output. Extract ALL scorer values and the average.
 
@@ -399,7 +399,7 @@ Scope: {SCOPE} (only modify files within this scope)
 4. Commit: git add {files} && git commit -m "autoiterate(team): {brief description}"
 5. Run experiment:
    uv run --package astral-eval astral-eval experiment --dataset {DATASET} --strategy {STRATEGY} {LLM_FLAG}
-   (default: --no-llm. If the lead specified --llm, omit --no-llm)
+   (default: LLM judges enabled. If the lead specified --no-llm, add --no-llm)
 6. Parse ALL scorer values from the output
 7. Return a structured report as your final message:
 

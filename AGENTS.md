@@ -153,25 +153,21 @@ uv run --package astral-serve astral-serve send 2026-03-01
 uv run --package astral-serve astral-serve status
 uv run --package astral-serve astral-serve status 2026-03-01
 
-# Evaluate newsletter quality (heuristic only, no LLM needed)
-uv run --package astral-eval astral-eval quality --since 30 --no-llm
-
-# Full quality eval with LLM judges (needs ANTHROPIC_API_KEY)
+# Evaluate newsletter quality (needs ANTHROPIC_API_KEY)
 uv run --package astral-eval astral-eval quality --since 30
 
 # Evaluate from an existing draft JSON file
 uv run --package astral-eval astral-eval quality --since 30 --draft-file data/drafts/draft.json
 
 # Write evaluation results to file
-uv run --package astral-eval astral-eval quality --since 30 --no-llm --output data/eval/results.json
+uv run --package astral-eval astral-eval quality --since 30 --output data/eval/results.json
 
 # Run a Braintrust-tracked experiment (needs BRAINTRUST_API_KEY)
-uv run --package astral-eval astral-eval experiment --since 7 --no-llm
 uv run --package astral-eval astral-eval experiment --dataset golden-standard
 
 # Compare strategies in parallel (separate experiments per strategy)
 uv run --package astral-eval astral-eval compare baseline headlines-only --since 7
-uv run --package astral-eval astral-eval compare baseline wide-coverage recency-biased --dataset golden-full --no-llm
+uv run --package astral-eval astral-eval compare baseline wide-coverage recency-biased --dataset golden-full
 
 # Create standard dataset tiers (smoke, standard, full) in Braintrust
 uv run --package astral-eval astral-eval setup-datasets
