@@ -4,10 +4,18 @@
       "Bash(git commit *)",
       "Bash(git add *)",
       "mcp__context7__*",
+      "mcp__braintrust__*",
+      "mcp__phoenix__*",
       "mcp__notion__notion-fetch"
     ]
   },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "worktree": {
+    "symlinkDirectories": [
+      "data",
+      ".env"
+    ]
   }
 }
