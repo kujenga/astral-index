@@ -37,9 +37,20 @@ def source_diversity(
     """Shannon entropy -> Effective Number of Sources, scored against a target.
 
     ENS = e^H where H is Shannon entropy over source_name frequencies.
-    Score = min(1.0, ENS / TARGET).
+    Target is min(5, unique input sources) so weeks with fewer sources
+    aren't penalized for a ceiling they can't reach.
+    Score = min(1.0, ENS / target).
     """
-    target = 5
+    fixed_target = 5
+    # Adapt target to available input diversity
+    if input:
+        input_sources = {
+            item.get("source_name") for item in input if item.get("source_name")
+        }
+        target = min(fixed_target, len(input_sources))
+    else:
+        target = fixed_target
+    target = max(target, 1)  # avoid division by zero
 
     sources: list[str] = []
     for section in output.get("sections", []):
