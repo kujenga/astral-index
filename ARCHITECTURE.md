@@ -98,9 +98,9 @@ Handles Layer 2 of the pipeline via a four-stage architecture with swappable imp
 
 Handles Layer 3 via the Buttondown API with a two-step publish workflow:
 
-- **Draft** — takes a `NewsletterDraft` JSON file, converts it to Buttondown's email format, and creates a remote draft via the API. Returns a `PublishRecord` with the Buttondown email ID.
-- **Send** — promotes a previously drafted email from draft to scheduled/sent status.
-- **Status** — inspects publishing state for a given date from the local `data/newsletters/{YYYY-MM-DD}/meta.json` tracking file.
+- **Draft** — accepts a date string (reads from `issues/{date}/`) or a JSON file path. When given a date, uses `draft.md` for the email body (respecting human edits) and `draft.json` for title/metadata. Creates a remote draft via the Buttondown API and writes publish state to both `issues/{date}/meta.json` (staging) and `data/newsletters/{date}/meta.json` (Buttondown record).
+- **Send** — promotes a previously drafted email from draft to scheduled/sent status. Updates staging meta on success.
+- **Status** — inspects publishing state from both `data/newsletters/` and `issues/` directories.
 
 **Models** — `PublishRecord` tracks issue state (draft/sent/failed), Buttondown email ID, and metadata.
 

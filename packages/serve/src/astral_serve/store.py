@@ -1,13 +1,19 @@
 """Filesystem storage for newsletter publishing state.
 
-Layout: {base_dir}/newsletters/{YYYY-MM-DD}/meta.json + draft.md
+Layout:
+  - Staging (git-tracked): issues/{YYYY-MM-DD}/draft.md + draft.json + meta.json
+  - Buttondown records: {base_dir}/newsletters/{YYYY-MM-DD}/meta.json + draft.md
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from .models import PublishRecord
+
+# Staging directory at repo root (git-tracked)
+STAGING_DIR = Path("issues")
 
 
 class NewsletterStore:
@@ -49,3 +55,24 @@ class NewsletterStore:
             if meta_path.exists():
                 records.append(PublishRecord.model_validate_json(meta_path.read_text()))
         return records
+
+
+def _staging_dir(date_str: str) -> Path:
+    return STAGING_DIR / date_str
+
+
+def load_staged_meta(date_str: str) -> dict | None:
+    """Load staging metadata from issues/{date}/meta.json."""
+    meta_path = _staging_dir(date_str) / "meta.json"
+    if not meta_path.exists():
+        return None
+    return json.loads(meta_path.read_text())
+
+
+def save_staged_meta(date_str: str, meta: dict) -> Path:
+    """Write staging metadata to issues/{date}/meta.json."""
+    dir_ = _staging_dir(date_str)
+    dir_.mkdir(parents=True, exist_ok=True)
+    meta_path = dir_ / "meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2) + "\n")
+    return meta_path

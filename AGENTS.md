@@ -21,6 +21,12 @@ packages/
 ├── author/     # astral-author  — turning scraped data into newsletters
 ├── serve/      # astral-serve   — newsletter delivery via Buttondown
 └── eval/       # astral-eval    — evaluation and quality iteration
+
+issues/           # git-tracked newsletter staging (one dir per issue date)
+└── 2026-03-15/
+    ├── draft.md    # human-editable, source of truth for email body
+    ├── draft.json  # machine-generated metadata (sections, scores, strategy)
+    └── meta.json   # publish state (Buttondown email ID, status)
 ```
 
 Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
@@ -39,7 +45,8 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
 - **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM); "wide-coverage" uses more deep-dive sections (max_deep_dives=5, min_group_size=1); "recency-biased" weights freshness heavily (w_recency=0.50).
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
-- **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. State tracked in `data/newsletters/{YYYY-MM-DD}/meta.json`.
+- **Newsletter staging** (`issues/`) — git-tracked directory for human-in-the-loop review. `astral-author draft` stages output here by default. The markdown (`draft.md`) is the human-editable source of truth; the JSON sidecar (`draft.json`) is machine-generated metadata. `astral-serve draft {date}` reads the edited markdown from staging.
+- **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. Accepts a date string (reads from `issues/{date}/`) or a JSON file path. State tracked in both `issues/{date}/meta.json` (staging) and `data/newsletters/{YYYY-MM-DD}/meta.json` (Buttondown record).
 - **PublishRecord** (`astral_serve.models`) — tracks issue publishing state (draft/sent/failed), Buttondown email ID, and metadata.
 - **`get_llm_client`** (`astral_core.llm`) — shared factory returning an `AsyncAnthropic` client (or `None` when `ANTHROPIC_API_KEY` is unset). Instruments the client via the active observability backend (Braintrust tracing, Phoenix OTEL, or noop). All LLM callsites (classifier, summarizer, drafter, eval judges) use this instead of creating clients directly.
 - **Quality evaluation** (`astral_eval`) — multi-dimensional newsletter scoring: 8 heuristic scorers (structural tier) + 9 LLM judges (quality tier) + 3 reference comparison judges. Scores are aggregated with weighted averaging: quality tier gets 2x weight, structural tier gets 1x. Floor score (worst individual scorer) is always surfaced. The 5 standard judges (editorial quality, coverage adequacy, readability, link quality, coherence) use GPT-4o-mini via Braintrust AI Proxy (or Claude Haiku fallback) with A–D rubrics. The 4 thinking-mode judges (summary faithfulness, summary informativeness, introduction quality, tone consistency) use Claude Sonnet with extended thinking and 3-call ensemble averaging for reduced variance. The 3 reference judges (oi_topic_overlap, oi_editorial_depth, oi_structural_similarity) compare generated newsletters against The Orbital Index issues for the same week — they require `expected` text and return None when unavailable. Scorers return a `Score` dataclass (0.0–1.0).
@@ -136,23 +143,25 @@ uv run --package astral-ingest astral-ingest classify --since 7 --no-llm --dry-r
 # List available authoring strategies
 uv run --package astral-author astral-author strategies
 
-# Generate a newsletter draft (headlines-only = no LLM needed)
+# Generate a newsletter draft → stages at issues/{date}/draft.md + draft.json
+uv run --package astral-author astral-author draft --since 7
 uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
 uv run --package astral-author astral-author draft --since 7 --dry-run
 
-# Write draft to file (writes both .md and .json sidecar)
+# Write draft to a custom path instead of issues/ (legacy)
 uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
 
 # Compare strategies side-by-side
 uv run --package astral-author astral-author compare baseline headlines-only --since 7
 
-# Create a Buttondown draft from a NewsletterDraft JSON file
-uv run --package astral-serve astral-serve draft data/drafts/draft.json --dry-run
-uv run --package astral-serve astral-serve draft data/drafts/draft.json
+# Create a Buttondown draft (reads from issues/{date}/ or a JSON file path)
+uv run --package astral-serve astral-serve draft 2026-03-15 --dry-run
+uv run --package astral-serve astral-serve draft 2026-03-15
+uv run --package astral-serve astral-serve draft data/drafts/draft.json  # legacy file path
 
 # Send a previously drafted newsletter
-uv run --package astral-serve astral-serve send 2026-03-01 --dry-run
-uv run --package astral-serve astral-serve send 2026-03-01
+uv run --package astral-serve astral-serve send 2026-03-15 --dry-run
+uv run --package astral-serve astral-serve send 2026-03-15
 
 # View publishing status
 uv run --package astral-serve astral-serve status
