@@ -74,7 +74,7 @@ uv run --package astral-author astral-author draft --since 7 --dry-run
 # Generate full draft → stages at issues/{date}/draft.md + draft.json
 uv run --package astral-author astral-author draft --since 7
 
-# Or use the headlines-only strategy (no LLM, free)
+# headlines-only: raw excerpts, no LLM — for pipeline testing only, not publishable
 uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
 
 # Write to a custom path instead of issues/ (legacy behavior)

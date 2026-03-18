@@ -43,7 +43,7 @@ Each package uses `src/` layout (e.g., `packages/core/src/astral_core/`).
 - Basic dedup: scrapers check `store.exists(id)` before saving.
 - **Authoring pipeline** (`astral_author`) — four-stage pipeline (rank → cluster → summarize → draft) with swappable implementations via Protocol interfaces.
 - **Pipeline stages**: `Ranker` (scores items), `Clusterer` (groups into sections), `Summarizer` (fills in summaries/prose), `Drafter` (assembles markdown).
-- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM); "wide-coverage" uses more deep-dive sections (max_deep_dives=5, min_group_size=1); "recency-biased" weights freshness heavily (w_recency=0.50).
+- **Strategies** (`astral_author.pipeline`) — named compositions of stages. "baseline" uses Claude Sonnet for summaries; "headlines-only" uses excerpts only (no LLM); "wide-coverage" uses more deep-dive sections (max_deep_dives=5, min_group_size=1); "recency-biased" weights freshness heavily (w_recency=0.50). **Always use `baseline` (or another LLM-backed strategy) when generating newsletters for review or publication.** The `headlines-only` strategy produces raw, unprocessed excerpts with truncation artifacts, boilerplate, and formatting issues — it exists only for unit testing and fast pipeline validation where output quality doesn't matter.
 - **Newsletter models** (`astral_author.models`) — `NewsletterDraft`, `NewsletterSection`, `ItemSummary`, `SectionType` (deep_dive, brief, links).
 - **Newsletter staging** (`issues/`) — git-tracked directory for human-in-the-loop review. `astral-author draft` stages output here by default. The markdown (`draft.md`) is the human-editable source of truth; the JSON sidecar (`draft.json`) is machine-generated metadata. `astral-serve draft {date}` reads the edited markdown from staging.
 - **Newsletter delivery** (`astral_serve`) — two-step publish via Buttondown API: `draft` creates a remote draft, `send` promotes it. Accepts a date string (reads from `issues/{date}/`) or a JSON file path. State tracked in both `issues/{date}/meta.json` (staging) and `data/newsletters/{YYYY-MM-DD}/meta.json` (Buttondown record).
@@ -145,8 +145,10 @@ uv run --package astral-author astral-author strategies
 
 # Generate a newsletter draft → stages at issues/{date}/draft.md + draft.json
 uv run --package astral-author astral-author draft --since 7
-uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
 uv run --package astral-author astral-author draft --since 7 --dry-run
+
+# headlines-only: raw excerpts, no LLM — for testing/validation only, not publishable output
+uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
 
 # Write draft to a custom path instead of issues/ (legacy)
 uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
