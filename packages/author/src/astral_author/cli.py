@@ -265,18 +265,30 @@ async def _draft(
     json_path.write_text(newsletter.model_dump_json(indent=2))
     click.echo(f"JSON written to {json_path}")
 
-    if not output_path:
-        issue_dir = md_path.parent
-        click.echo(
-            f"\nStaged at {issue_dir}/ — review draft.md, commit edits, then publish"
-        )
-
     click.echo("\n--- Pipeline stats ---")
     click.echo(f"Strategy: {newsletter.strategy_name}")
     click.echo(f"Items: {newsletter.total_output_items}")
     click.echo(f"Sections: {len(newsletter.sections)}")
     click.echo(f"Words: {newsletter.word_count}")
     click.echo(f"Time: {newsletter.generation_seconds}s")
+
+    if not output_path:
+        issue_dir = md_path.parent
+        since_str = since.strftime("%Y-%m-%d")
+        click.echo(f"\nStaged at {issue_dir}/")
+        click.echo("Next steps:")
+        click.echo(
+            f"  1. Evaluate:  uv run --package astral-eval astral-eval"
+            f" quality --since {since_str}"
+            f" --draft-file {json_path}"
+            f" --output {issue_dir}/eval.json"
+        )
+        click.echo(f"  2. Review:    edit {md_path}")
+        click.echo(f"  3. Commit:    git add {issue_dir} && git commit")
+        click.echo(
+            f"  4. Publish:   uv run --package astral-serve"
+            f" astral-serve draft {newsletter.issue_date}"
+        )
 
 
 @cli.command()

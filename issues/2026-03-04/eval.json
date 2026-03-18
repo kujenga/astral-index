@@ -1,0 +1,218 @@
+{
+  "category_coverage": {
+    "score": 0.833,
+    "metadata": {
+      "input_cats": 12,
+      "output_cats": 10,
+      "covered": [
+        "commercial_space",
+        "deep_space",
+        "defense_space",
+        "international",
+        "iss_stations",
+        "launch_vehicles",
+        "lunar",
+        "policy",
+        "satellite_comms",
+        "space_science"
+      ],
+      "missing": [
+        "earth_observation",
+        "mars"
+      ]
+    }
+  },
+  "coherence_flow": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "raw": "A - The newsletter flows logically from foundational space science discoveries through commercial/policy developments to near-term launch activities, with intentional transitions that build a coherent"
+    }
+  },
+  "content_originality": {
+    "score": 1.0,
+    "metadata": {
+      "total": 37,
+      "social": 6,
+      "original_ratio": 0.838,
+      "social_items": [
+        "SpaceX shares the same goal as NASA of returning t (Twitter: @SpaceX)",
+        "Falcon 9 launches 25 @Starlink satellites from Cal (Twitter: @SpaceX)",
+        "LIFTOFF! Launch of our latest hypersonic test miss (Twitter: @RocketLab)",
+        "This NASA press release is the first time I've see (Bluesky: @spacepolicyonline.bsky.social)",
+        "Former #NASA Administrator Jim Bridenstine had som (Bluesky: @nasawatch.bsky.social)",
+        "Did you miss the total lunar eclipse this morning? (Twitter: @NASA)"
+      ]
+    }
+  },
+  "coverage_adequacy": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter covers most major stories well\u2014including the critical 60,000 AGN study, Artemis II repairs and program restructuring, SpaceX's milestone achievements, and international collaboration"
+    }
+  },
+  "editorial_quality": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter demonstrates competent writing with strong editorial voice and varied structure in the main sections, but the inclusion of numerous loosely-curated brief items at the end creates fil"
+    }
+  },
+  "intro_quality": {
+    "score": 0.98,
+    "metadata": {
+      "word_count": 136,
+      "presence": 0.92,
+      "not_template": 1.0,
+      "specificity": 1.0,
+      "substance": 1.0,
+      "engagement": 1.0,
+      "entity_count": 12,
+      "substance_overlap": 25,
+      "engagement_signals": 2
+    }
+  },
+  "introduction_quality": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "ensemble_size": 3,
+      "all_scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "all_choices": [
+        "A",
+        "A",
+        "A"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "link_quality": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nMost claims are sourced with inline links to primary sources (Nature, NASA, SpaceNews, ESA) and descriptive anchor text matching their content, but several significant claims lack any sourcing\u2014incl"
+    }
+  },
+  "off_topic_leakage": {
+    "score": 1.0,
+    "metadata": {
+      "total": 37,
+      "off_topic": 0,
+      "off_topic_titles": [],
+      "entertainment": 0,
+      "entertainment_titles": []
+    }
+  },
+  "readability_fit": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "raw": "A\n\nThis newsletter strikes the ideal balance for space-industry professionals and enthusiasts: it uses precise technical terminology (cosmological simulations, photoevaporation, mean-motion resonances"
+    }
+  },
+  "section_balance": {
+    "score": 0.999,
+    "metadata": {
+      "section_counts": [
+        6,
+        6,
+        6,
+        6,
+        6,
+        7
+      ],
+      "entropy": 1.79,
+      "max_entropy": 1.792,
+      "oversized": []
+    }
+  },
+  "semantic_dedup": {
+    "score": 1.0,
+    "metadata": {
+      "n_items": 37,
+      "duplicate_pairs": [],
+      "n_duplicates": 0
+    }
+  },
+  "source_diversity": {
+    "score": 1.0,
+    "metadata": {
+      "ens": 26.04,
+      "n_sources": 28
+    }
+  },
+  "summary_faithfulness": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "ensemble_size": 3,
+      "all_scores": [
+        0.7,
+        0.7,
+        0.7
+      ],
+      "all_choices": [
+        "B",
+        "B",
+        "B"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "summary_informativeness": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "ensemble_size": 3,
+      "all_scores": [
+        0.7,
+        0.7,
+        0.7
+      ],
+      "all_choices": [
+        "B",
+        "B",
+        "B"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "summary_quality": {
+    "score": 1.0,
+    "metadata": {
+      "total": 37,
+      "bad": 0,
+      "bad_items": []
+    }
+  },
+  "technical_focus": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "raw": "A\n\nEvery item covers technical developments (cosmological simulations, aeronautics research, mission repairs, atmospheric science, launch operations, infrastructure repairs, satellite deployments, spa"
+    }
+  },
+  "tone_consistency": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "ensemble_size": 3,
+      "all_scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "all_choices": [
+        "A",
+        "A",
+        "A"
+      ],
+      "aggregation": "median"
+    }
+  }
+}

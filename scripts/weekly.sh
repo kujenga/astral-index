@@ -33,9 +33,8 @@ Steps:
   1. Scrape      Fetch all configured sources
   2. Expand      Fetch full article text (with Playwright JS rendering)
   3. Classify    Keyword regex + Claude Haiku LLM fallback
-  4. Draft       Generate newsletter (baseline strategy, Claude Sonnet)
-  5. Evaluate    Heuristic + LLM quality judges
-  6. Deliver     Push to Buttondown (only with --send)
+  4. Draft+Eval  Generate newsletter and run quality scoring
+  5. Deliver     Push to Buttondown (only with --send)
 
 Examples:
   $(basename "$0")                     # Full pipeline, no delivery
@@ -118,57 +117,53 @@ echo "  Send:       $SEND"
 echo "  No expand:  $NO_EXPAND"
 
 # ── Step 1: Scrape ────────────────────────────────────────────────────────────
-banner "Step 1/6 — Scrape"
+banner "Step 1/5 — Scrape"
 uv run --package astral-ingest astral-ingest scrape "${DRY_FLAG[@]}"
 
 # ── Step 2: Expand ────────────────────────────────────────────────────────────
 if $NO_EXPAND; then
-    banner "Step 2/6 — Expand (skipped: --no-expand)"
+    banner "Step 2/5 — Expand (skipped: --no-expand)"
 else
-    banner "Step 2/6 — Expand"
+    banner "Step 2/5 — Expand"
     uv run --package astral-ingest astral-ingest expand --since "${SINCE:-7}" --js "${DRY_FLAG[@]}"
 fi
 
 # ── Step 3: Classify ──────────────────────────────────────────────────────────
-banner "Step 3/6 — Classify"
+banner "Step 3/5 — Classify"
 uv run --package astral-ingest astral-ingest classify --since "${SINCE:-7}" "${DRY_FLAG[@]}"
 
-# ── Step 4: Draft ─────────────────────────────────────────────────────────────
-banner "Step 4/6 — Draft"
+# ── Step 4: Draft + Evaluate ──────────────────────────────────────────────────
+banner "Step 4/5 — Draft + Evaluate"
 if $DRY_RUN; then
     uv run --package astral-author astral-author draft "${SINCE_FLAG[@]}" --dry-run
 else
-    # Default staging writes to issues/{date}/ automatically (no --output needed)
+    # Draft — stages in issues/{date}/ automatically
     uv run --package astral-author astral-author draft "${SINCE_FLAG[@]}"
-    echo ""
-    echo "Draft staged at:"
-    echo "  Markdown: $DRAFT_MD"
-    echo "  JSON:     $DRAFT_JSON"
-    echo ""
-    echo "Review ${ISSUE_DIR}/draft.md, commit edits, then re-run with --send"
-fi
 
-# ── Step 5: Evaluate ──────────────────────────────────────────────────────────
-if $DRY_RUN; then
-    banner "Step 5/6 — Evaluate (skipped: --dry-run)"
-else
-    banner "Step 5/6 — Evaluate"
-    mkdir -p "$(dirname "$EVAL_OUTPUT")"
+    # Evaluate — scores the draft and writes eval.json alongside the draft
+    echo ""
+    echo "Running quality evaluation..."
+    EVAL_JSON="${ISSUE_DIR}/eval.json"
     uv run --package astral-eval astral-eval quality \
         --since "${SINCE:-7}" \
         --draft-file "$DRAFT_JSON" \
-        --output "$EVAL_OUTPUT"
+        --output "$EVAL_JSON"
     echo ""
-    echo "Eval results written to: $EVAL_OUTPUT"
+    echo "Staged at ${ISSUE_DIR}/:"
+    echo "  draft.md   — newsletter (edit this)"
+    echo "  draft.json — machine metadata"
+    echo "  eval.json  — quality scores"
+    echo ""
+    echo "Review scores above, edit draft.md, then re-run with --send"
 fi
 
 # ── Step 6: Deliver ───────────────────────────────────────────────────────────
 if $SEND; then
     if $DRY_RUN; then
-        banner "Step 6/6 — Deliver (dry run)"
+        banner "Step 5/5 — Deliver (dry run)"
         uv run --package astral-serve astral-serve draft "$ISSUE_DATE" --dry-run
     else
-        banner "Step 6/6 — Deliver"
+        banner "Step 5/5 — Deliver"
         uv run --package astral-serve astral-serve draft "$ISSUE_DATE"
         echo ""
         echo "Draft pushed to Buttondown. Review it in the dashboard, then confirm below."
@@ -183,7 +178,7 @@ if $SEND; then
         fi
     fi
 else
-    banner "Step 6/6 — Deliver (skipped: use --send to enable)"
+    banner "Step 5/5 — Deliver (skipped: use --send to enable)"
     echo "To publish this draft manually:"
     echo "  uv run --package astral-serve astral-serve draft $ISSUE_DATE"
     echo "  uv run --package astral-serve astral-serve send $ISSUE_DATE"
