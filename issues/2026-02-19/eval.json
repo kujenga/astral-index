@@ -1,0 +1,222 @@
+{
+  "category_coverage": {
+    "score": 0.833,
+    "metadata": {
+      "input_cats": 12,
+      "output_cats": 10,
+      "covered": [
+        "commercial_space",
+        "deep_space",
+        "defense_space",
+        "international",
+        "iss_stations",
+        "launch_vehicles",
+        "lunar",
+        "policy",
+        "satellite_comms",
+        "space_science"
+      ],
+      "missing": [
+        "earth_observation",
+        "mars"
+      ]
+    }
+  },
+  "coherence_flow": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter mostly follows a coherent narrative arc progressing from strategic policy shifts through technical milestones to international developments, but the \"George Washington and America's "
+    }
+  },
+  "content_originality": {
+    "score": 0.982,
+    "metadata": {
+      "total": 32,
+      "social": 10,
+      "original_ratio": 0.688,
+      "social_items": [
+        "NASA is promoting their Career Pathways intern pro (Bluesky: @nasawatch.bsky.social)",
+        "Space Policy Committee Minutes Bot Malfunctioned A (Bluesky: @spacenews.bsky.social)",
+        "A new meeting was held. (Bluesky: @spacenews.bsky.social)",
+        "TechEdSat-11 was a 6UXL cubesat from NASA-Ames and (Bluesky: @planet4589.bsky.social)",
+        "I got a peek at Blue Origin\u2019s new lunar plans. Her (Bluesky: @sciguyspace.bsky.social)",
+        "NASA will attempt a second Artemis 2 wet dress reh (Bluesky: @jfoust.bsky.social)",
+        "NASA Eyes Next Wet Dress Rehearsal for Artemis II  (Bluesky: @nasawatch.bsky.social)",
+        "The Chinese spaceplane maneuvered from a 349 x 592 (Bluesky: @planet4589.bsky.social)",
+        "158 first-gen Starlinks have now relocated from th (Bluesky: @planet4589.bsky.social)",
+        "From NASA Administrator Isaacman yesterday: \"there (Bluesky: @jfoust.bsky.social)"
+      ]
+    }
+  },
+  "coverage_adequacy": {
+    "score": 0.1,
+    "metadata": {
+      "choice": "D",
+      "raw": "D\n\nThe newsletter almost entirely ignores the week's dominant scientific stories\u2014multiple Nature Astronomy papers on star formation, red supergiants, galaxy evolution, and exoplanetary systems\u2014and mis"
+    }
+  },
+  "editorial_quality": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter demonstrates competent writing with a distinct editorial voice and strong thematic organization, but suffers from uneven execution with occasional filler (particularly the off-topic "
+    }
+  },
+  "intro_quality": {
+    "score": 0.986,
+    "metadata": {
+      "word_count": 131,
+      "presence": 0.945,
+      "not_template": 1.0,
+      "specificity": 1.0,
+      "substance": 1.0,
+      "engagement": 1.0,
+      "entity_count": 15,
+      "substance_overlap": 26,
+      "engagement_signals": 2
+    }
+  },
+  "introduction_quality": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "ensemble_size": 3,
+      "all_scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "all_choices": [
+        "A",
+        "A",
+        "A"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "link_quality": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter demonstrates mostly solid sourcing with descriptive anchor text and appropriate primary sources (NASA.gov, ESA, NASASpaceflight), but suffers from several issues: vague Bluesky links"
+    }
+  },
+  "off_topic_leakage": {
+    "score": 1.0,
+    "metadata": {
+      "total": 32,
+      "off_topic": 0,
+      "off_topic_titles": [],
+      "entertainment": 0,
+      "entertainment_titles": []
+    }
+  },
+  "readability_fit": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "raw": "B\n\nThe newsletter mostly hits the right tone for industry professionals\u2014it uses appropriate technical terminology (Wet Dress Rehearsal, orbital shells, geosynchronous orbit), provides substantive cont"
+    }
+  },
+  "section_balance": {
+    "score": 0.967,
+    "metadata": {
+      "section_counts": [
+        6,
+        6,
+        6,
+        3,
+        3,
+        8
+      ],
+      "entropy": 1.732,
+      "max_entropy": 1.792,
+      "oversized": []
+    }
+  },
+  "semantic_dedup": {
+    "score": 1.0,
+    "metadata": {
+      "n_items": 32,
+      "duplicate_pairs": [],
+      "n_duplicates": 0
+    }
+  },
+  "source_diversity": {
+    "score": 1.0,
+    "metadata": {
+      "ens": 13.52,
+      "n_sources": 15
+    }
+  },
+  "summary_faithfulness": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "ensemble_size": 3,
+      "all_scores": [
+        0.7,
+        0.7,
+        0.7
+      ],
+      "all_choices": [
+        "B",
+        "B",
+        "B"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "summary_informativeness": {
+    "score": 0.7,
+    "metadata": {
+      "choice": "B",
+      "ensemble_size": 3,
+      "all_scores": [
+        0.7,
+        0.7,
+        0.7
+      ],
+      "all_choices": [
+        "B",
+        "B",
+        "B"
+      ],
+      "aggregation": "median"
+    }
+  },
+  "summary_quality": {
+    "score": 1.0,
+    "metadata": {
+      "total": 32,
+      "bad": 0,
+      "bad_items": []
+    }
+  },
+  "technical_focus": {
+    "score": 0.4,
+    "metadata": {
+      "choice": "C",
+      "raw": "C\n\nThe newsletter includes several non-technical items that dilute focus: two completely off-topic articles (\"George Washington and America's Original Sin\" and \"Trump-Epstein Files: Sickening and Depr"
+    }
+  },
+  "tone_consistency": {
+    "score": 1.0,
+    "metadata": {
+      "choice": "A",
+      "ensemble_size": 3,
+      "all_scores": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "all_choices": [
+        "A",
+        "A",
+        "A"
+      ],
+      "aggregation": "median"
+    }
+  }
+}

@@ -63,25 +63,31 @@ Each step is idempotent — re-running skips already-processed items.
 
 **Result:** ~500–1000 classified, full-text items in `data/items/{YYYY-MM-DD}/`.
 
-### 2. Author
+### 2. Author + Evaluate
 
-Generate a newsletter draft. By default, output is staged in the git-tracked `issues/` directory.
+Generate a newsletter draft and run quality scoring. Both outputs are staged together in `issues/{date}/`.
 
 ```bash
-# Preview structure without LLM cost
-uv run --package astral-author astral-author draft --since 7 --dry-run
+# Generate full draft → stages at issues/{date}/
+uv run --package astral-author astral-author draft
 
-# Generate full draft → stages at issues/{date}/draft.md + draft.json
-uv run --package astral-author astral-author draft --since 7
-
-# Or use the headlines-only strategy (no LLM, free)
-uv run --package astral-author astral-author draft --since 7 --strategy headlines-only
-
-# Write to a custom path instead of issues/ (legacy behavior)
-uv run --package astral-author astral-author draft --since 7 --output data/drafts/draft.md
+# Then evaluate (run immediately after drafting)
+uv run --package astral-eval astral-eval quality \
+    --since 2026-03-05 \
+    --draft-file issues/2026-03-12/draft.json \
+    --output issues/2026-03-12/eval.json
 ```
 
-Without `--output`, the draft is staged at `issues/{issue_date}/draft.md` (human-editable markdown) and `issues/{issue_date}/draft.json` (machine metadata). The markdown is the source of truth for content; edit it freely.
+The `draft` command prints the exact eval command to copy-paste. After both steps, `issues/{date}/` contains:
+- `draft.md` — human-editable newsletter (source of truth for email body)
+- `draft.json` — machine metadata (sections, scores, strategy)
+- `eval.json` — quality scores (heuristic + LLM judges)
+
+Review the eval scores for red flags before editing. Key things to watch:
+- **coverage_adequacy** < 0.7 — important stories may be missing
+- **summary_faithfulness** < 0.7 — summaries may contain hallucinated claims
+- **technical_focus** < 0.7 — too much general/policy content vs. technical space content
+- **editorial_quality** < 0.7 — prose quality needs attention
 
 **Comparing strategies:**
 
@@ -89,46 +95,32 @@ Without `--output`, the draft is staged at `issues/{issue_date}/draft.md` (human
 uv run --package astral-author astral-author compare baseline headlines-only --since 7
 ```
 
-Outputs side-by-side `.md` + `.json` files and a comparison table (word count, sections, generation time).
+**Preview without LLM cost:**
 
-**Result:** A staged newsletter in `issues/{date}/` ready for review.
+```bash
+uv run --package astral-author astral-author draft --dry-run
+```
 
 ### 3. Review & Edit
 
-The `issues/{date}/draft.md` file is git-tracked and human-editable. This is the editorial review step:
+The `issues/{date}/draft.md` file is git-tracked and human-editable:
 
-1. Read the generated markdown. Check for factual accuracy, link quality, section balance, and tone.
-2. Edit `draft.md` directly — your edits become the source of truth for delivery.
-3. Commit your edits for revision history:
+1. Check eval scores for flagged areas (see `eval.json` or the CLI output).
+2. Read the generated markdown. Check for factual accuracy, link quality, section balance, and tone.
+3. Edit `draft.md` directly — your edits become the source of truth for delivery.
+4. Commit your edits for revision history:
 
 ```bash
-git add issues/2026-03-15/
-git commit -m "issue 2026-03-15: initial draft"
+git add issues/2026-03-12/
+git commit -m "issue 2026-03-12: initial draft"
 
 # ... make more edits ...
-git commit -am "issue 2026-03-15: fix Artemis summary, reorder sections"
+git commit -am "issue 2026-03-12: fix Artemis summary, reorder sections"
 ```
 
 No need to update `draft.json` — the serve CLI reads markdown from `draft.md` and metadata from `draft.json` independently.
 
-### 4. Evaluate (optional)
-
-Score the draft before sending. Heuristic scorers (source diversity, category coverage, link count) run locally with no API cost. LLM judges (editorial quality, readability, coherence, etc.) need an API key.
-
-```bash
-# Heuristic only (free, fast)
-uv run --package astral-eval astral-eval quality --since 7 --no-llm --draft-file issues/2026-03-15/draft.json
-
-# Full eval with LLM judges
-uv run --package astral-eval astral-eval quality --since 7 --draft-file issues/2026-03-15/draft.json
-
-# Score an existing draft file (heuristic only, logs to Braintrust if available)
-uv run --package astral-eval astral-eval score issues/2026-03-15/draft.json --since 7
-```
-
-Online scoring also runs automatically during `draft` — heuristic scores are logged to the current Braintrust span if tracing is active.
-
-### 5. Deliver
+### 4. Deliver
 
 Push the draft to Buttondown, review in their UI, then send. The serve CLI accepts a date string and reads from `issues/{date}/` — it uses `draft.md` for the email body (respecting your edits) and `draft.json` for title/metadata.
 
@@ -172,10 +164,14 @@ uv run --package astral-ingest astral-ingest scrape
 uv run --package astral-ingest astral-ingest expand --since 7
 uv run --package astral-ingest astral-ingest classify --since 7
 
-# Author (stages at issues/{date}/)
-uv run --package astral-author astral-author draft --since 7
+# Author + Evaluate (stages at issues/{date}/)
+uv run --package astral-author astral-author draft
+# (copy the eval command printed by draft, or:)
+uv run --package astral-eval astral-eval quality \
+    --since 2026-03-05 --draft-file issues/2026-03-12/draft.json \
+    --output issues/2026-03-12/eval.json
 
-# Review & edit issues/{date}/draft.md, then commit
+# Review eval scores, edit draft.md, commit
 git add issues/ && git commit -m "issue YYYY-MM-DD: initial draft"
 
 # Deliver (reads from issues/{date}/)
