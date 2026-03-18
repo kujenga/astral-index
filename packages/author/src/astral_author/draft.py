@@ -23,6 +23,7 @@ Write a compelling introduction (3-5 sentences) that:
 - Briefly previews the other major themes covered in this issue
 - Uses a conversational but informed editorial voice
 
+Write entirely in English. \
 Return ONLY the introduction text, no greetings or sign-offs."""
 
 

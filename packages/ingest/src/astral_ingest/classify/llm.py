@@ -41,6 +41,8 @@ and excerpt, \
 return exactly ONE category from the list below. Return ONLY the category value \
 (e.g. "launch_vehicles"), nothing else.
 
+The content may be in any language. Classify based on the topic regardless of language.
+
 Classify content as "off_topic" if it is entertainment rather than technical \
 reporting — this includes astrophotography, observing guides, stargazing calendars, \
 sci-fi reviews, and photo galleries, even if they mention space topics.
